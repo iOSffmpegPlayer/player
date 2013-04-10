@@ -63,6 +63,10 @@ static int64_t audio_callback_time;
 
 static AVPacket flush_pkt;
 
+static KxMovieDecoder *kxMoviedecoder;
+
+static KxVideoFrame *kxVideoFrame;
+
 #define FF_ALLOC_EVENT   (SDL_USEREVENT)
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
@@ -489,36 +493,61 @@ static void video_image_display(VideoState *is)
     int i;
     
     vp = &is->pictq[is->pictq_rindex];
-    if (vp->bmp) {
-        if (is->subtitle_st) {
-            if (is->subpq_size > 0) {
-                sp = &is->subpq[is->subpq_rindex];
-                
-                if (vp->pts >= sp->pts + ((float) sp->sub.start_display_time / 1000)) {
-                    SDL_LockYUVOverlay (vp->bmp);
-                    
-                    pict.data[0] = vp->bmp->pixels[0];
-                    pict.data[1] = vp->bmp->pixels[2];
-                    pict.data[2] = vp->bmp->pixels[1];
-                    
-                    pict.linesize[0] = vp->bmp->pitches[0];
-                    pict.linesize[1] = vp->bmp->pitches[2];
-                    pict.linesize[2] = vp->bmp->pitches[1];
-                    
-                    for (i = 0; i < sp->sub.num_rects; i++)
-                        blend_subrect(&pict, sp->sub.rects[i],
-                                      vp->bmp->w, vp->bmp->h);
-                    
-                    SDL_UnlockYUVOverlay (vp->bmp);
-                }
-            }
-        }
-        
-        calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp);
+//    if (vp->bmp) {
+//        if (is->subtitle_st) {
+//            if (is->subpq_size > 0) {
+//                sp = &is->subpq[is->subpq_rindex];
+//                
+//                if (vp->pts >= sp->pts + ((float) sp->sub.start_display_time / 1000)) {
+//                    SDL_LockYUVOverlay (vp->bmp);
+//                    
+//                    pict.data[0] = vp->bmp->pixels[0];
+//                    pict.data[1] = vp->bmp->pixels[2];
+//                    pict.data[2] = vp->bmp->pixels[1];
+//                    
+//                    pict.linesize[0] = vp->bmp->pitches[0];
+//                    pict.linesize[1] = vp->bmp->pitches[2];
+//                    pict.linesize[2] = vp->bmp->pitches[1];
+//                    
+//                    for (i = 0; i < sp->sub.num_rects; i++)
+//                        blend_subrect(&pict, sp->sub.rects[i],
+//                                      vp->bmp->w, vp->bmp->h);
+//                    
+//                    SDL_UnlockYUVOverlay (vp->bmp);
+//                }
+//            }
+//        }
+//        
+//        calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp);
+//
+//        SDL_DisplayYUVOverlay(vp->bmp, &rect);
+//
+//    }
 
-        SDL_DisplayYUVOverlay(vp->bmp, &rect);
-
-    }
+//    struct SwsContext *img_convert_ctx;
+//    
+//    // Release old picture and scaler
+//	avpicture_free(&pict);
+////	sws_freeContext(img_convert_ctx);
+//	
+//	// Allocate RGB picture
+//	avpicture_alloc(&pict, PIX_FMT_RGB24, vp->width, vp->height);
+//	
+//	// Setup scaler
+//	static int sws_flags =  SWS_FAST_BILINEAR;
+//	img_convert_ctx = sws_getContext(is->video_st->codec->width,
+//									 is->video_st->codec->height,
+//									 is->video_st->codec->pix_fmt,
+//									 vp->width,
+//									 vp->height,
+//									 PIX_FMT_RGB24,
+//									 sws_flags, NULL, NULL, NULL);
+//    sws_scale (img_convert_ctx, is->frame->data, is->frame->linesize,
+//			   0, is->video_st->codec->height,
+//			   pict.data, pict.linesize);
+//    imageFromAVPicture(pict, vp->width, vp->height);
+//    imageFromAVPicture(*(AVPicture *)(is->frame), vp->width, vp->height);
+//    kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:is->frame andvideoCodecCtx:is->video_st->codec];
 
 }
 
@@ -750,21 +779,21 @@ static int video_open(VideoState *is, int force_set_video_mode)
         w = 640;
         h = 480;
     }
-    if (screen && is->width == screen->w && screen->w == w
-        && is->height== screen->h && screen->h == h && !force_set_video_mode)
-        return 0;
+//    if (screen && is->width == screen->w && screen->w == w
+//        && is->height== screen->h && screen->h == h && !force_set_video_mode)
+//        return 0;
 
-    screen = SDL_SetVideoMode(w, h, 0, SDL_FULLSCREEN);
-    if (!screen) {
-        fprintf(stderr, "SDL: could not set video mode - exiting\n");
-        do_exit(is);
-    }
+//    screen = SDL_SetVideoMode(w, h, 0, SDL_FULLSCREEN);
+//    if (!screen) {
+//        fprintf(stderr, "SDL: could not set video mode - exiting\n");
+//        do_exit(is);
+//    }
     if (!window_title)
         window_title = input_filename;
     SDL_WM_SetCaption(window_title, window_title);
     
-    is->width  = screen->w;
-    is->height = screen->h;
+    is->width  = 100;
+    is->height = 100;
     
     return 0;
 }
@@ -773,7 +802,7 @@ static int video_open(VideoState *is, int force_set_video_mode)
 static void video_display(VideoState *is)
 {
 
-    if (!screen)
+    //if (!screen)
         video_open(is, 0);
     if (is->audio_st && is->show_mode != SHOW_MODE_VIDEO)
     {
@@ -1119,17 +1148,17 @@ static void alloc_picture(VideoState *is)
     
     video_open(is, 0);
     
-    vp->bmp = SDL_CreateYUVOverlay(vp->width, vp->height,
-                                   SDL_YV12_OVERLAY,
-                                   screen);
-    if (!vp->bmp || vp->bmp->pitches[0] < vp->width) {
-        /* SDL allocates a buffer smaller than requested if the video
-         * overlay hardware is unable to support the requested size. */
-        fprintf(stderr, "Error: the video system does not support an image\n"
-                "size of %dx%d pixels. Try using -lowres or -vf \"scale=w:h\"\n"
-                "to reduce the image size.\n", vp->width, vp->height );
-        do_exit(is);
-    }
+//    vp->bmp = SDL_CreateYUVOverlay(vp->width, vp->height,
+//                                   SDL_YV12_OVERLAY,
+//                                   screen);
+//    if (!vp->bmp || vp->bmp->pitches[0] < vp->width) {
+//        /* SDL allocates a buffer smaller than requested if the video
+//         * overlay hardware is unable to support the requested size. */
+//        fprintf(stderr, "Error: the video system does not support an image\n"
+//                "size of %dx%d pixels. Try using -lowres or -vf \"scale=w:h\"\n"
+//                "to reduce the image size.\n", vp->width, vp->height );
+//        do_exit(is);
+//    }
     
     SDL_LockMutex(is->pictq_mutex);
     vp->allocated = 1;
@@ -1184,7 +1213,9 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 #endif
     
     /* alloc or resize hardware picture buffer */
+//    if (!vp->bmp || vp->reallocate || !vp->allocated ||
     if (!vp->bmp || vp->reallocate || !vp->allocated ||
+
         vp->width  != src_frame->width ||
         vp->height != src_frame->height) {
         SDL_Event event;
@@ -1219,7 +1250,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     }
     
     /* if the frame is not skipped, then display it */
-    if (vp->bmp) {
+//    if (vp->bmp) {
         AVPicture pict = { { 0 } };
 #if CONFIG_AVFILTER
         avfilter_unref_bufferp(&vp->picref);
@@ -1227,20 +1258,20 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 #endif
         
         /* get a pointer on the bitmap */
-        SDL_LockYUVOverlay (vp->bmp);
-        
-        pict.data[0] = vp->bmp->pixels[0];
-        pict.data[1] = vp->bmp->pixels[2];
-        pict.data[2] = vp->bmp->pixels[1];
-        
-        pict.linesize[0] = vp->bmp->pitches[0];
-        pict.linesize[1] = vp->bmp->pitches[2];
-        pict.linesize[2] = vp->bmp->pitches[1];
-        
+//        SDL_LockYUVOverlay (vp->bmp);
+//        
+//        pict.data[0] = vp->bmp->pixels[0];
+//        pict.data[1] = vp->bmp->pixels[2];
+//        pict.data[2] = vp->bmp->pixels[1];
+//        
+//        pict.linesize[0] = vp->bmp->pitches[0];
+//        pict.linesize[1] = vp->bmp->pitches[2];
+//        pict.linesize[2] = vp->bmp->pitches[1];
+    
 #if CONFIG_AVFILTER
         // FIXME use direct rendering
-        av_picture_copy(&pict, (AVPicture *)src_frame,
-                        src_frame->format, vp->width, vp->height);
+//        av_picture_copy(&pict, (AVPicture *)src_frame,
+//                        src_frame->format, vp->width, vp->height);
 #else
         sws_flags = av_get_int(sws_opts, "sws_flags", NULL);
         is->img_convert_ctx = sws_getCachedContext(is->img_convert_ctx,
@@ -1254,19 +1285,61 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
                   0, vp->height, pict.data, pict.linesize);
 #endif
         /* update the bitmap content */
-        SDL_UnlockYUVOverlay(vp->bmp);
-        
-        vp->pts = pts;
-        vp->pos = pos;
-        vp->skip = 0;
-        
-        /* now we can update the picture count */
-        if (++is->pictq_windex == VIDEO_PICTURE_QUEUE_SIZE)
-            is->pictq_windex = 0;
-        SDL_LockMutex(is->pictq_mutex);
-        is->pictq_size++;
-        SDL_UnlockMutex(is->pictq_mutex);
-    }
+//        SDL_UnlockYUVOverlay(vp->bmp);
+    /*
+    struct SwsContext *img_convert_ctx;
+    
+    // Release old picture and scaler
+	avpicture_free(&pict);
+    //	sws_freeContext(img_convert_ctx);
+	
+	// Allocate RGB picture
+	avpicture_alloc(&pict, PIX_FMT_RGB24, vp->width, vp->height);
+	
+	// Setup scaler
+	static int sws_flags =  SWS_BILINEAR;
+	img_convert_ctx = sws_getContext(is->video_st->codec->width,
+									 is->video_st->codec->height,
+									 is->video_st->codec->pix_fmt,
+									 vp->width,
+									 vp->height,
+									 PIX_FMT_RGB24,
+									 sws_flags, NULL, NULL, NULL);
+//    img_convert_ctx = sws_getCachedContext(img_convert_ctx,
+//                         vp->width, vp->height, src_frame->format, vp->width, vp->height,
+//                         PIX_FMT_RGB24, sws_flags, NULL, NULL, NULL);
+    sws_scale (img_convert_ctx, src_frame->data, is->frame->linesize,
+			   0, is->video_st->codec->height,
+			   pict.data, pict.linesize);
+    imageFromAVPicture(pict, vp->width, vp->height);
+
+    */
+//    imageFromAVPicture(*(AVPicture *)(src_frame), vp->width, vp->height);
+//
+//        vp->pts = pts;
+//        vp->pos = pos;
+//        vp->skip = 0;
+//        
+//        /* now we can update the picture count */
+//        if (++is->pictq_windex == VIDEO_PICTURE_QUEUE_SIZE)
+//            is->pictq_windex = 0;
+//        SDL_LockMutex(is->pictq_mutex);
+//        is->pictq_size++;
+//        SDL_UnlockMutex(is->pictq_mutex);
+    
+    kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
+    
+//    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+//        kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
+//
+//    });
+//    dispatch_queue_t queue;
+//    queue = dispatch_queue_create("myQueue", NULL);
+//    dispatch_async(queue, ^{
+//        kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
+//        
+//    });
+//    }
     return 0;
 }
 
@@ -2672,8 +2745,8 @@ static void event_loop(VideoState *cur_stream)
                 NSLog(@"也执行这里了么？%s  %d", __FUNCTION__, __LINE__);
 //                screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
 //                                          SDL_HWSURFACE|SDL_RESIZABLE|SDL_ASYNCBLIT|SDL_HWACCEL);
-                screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
-                                          SDL_FULLSCREEN);
+//                screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
+//                                          SDL_FULLSCREEN);
                 screen_width  = cur_stream->width  = event.resize.w;
                 screen_height = cur_stream->height = event.resize.h;
                 cur_stream->force_refresh = 1;
@@ -3002,6 +3075,15 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 {
     [super viewDidLoad];
     // Do any additional setup after loading the view from its nib.
+    
+    kxMoviedecoder = [[KxMovieDecoder alloc] init];
+    
+    UIView *frameView = [self frameView];
+    frameView.contentMode = UIViewContentModeScaleAspectFit;
+    frameView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleBottomMargin;
+    
+//    [self.view insertSubview:frameView atIndex:0];
+    [self.view addSubview:frameView];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -3038,8 +3120,8 @@ const char program_name[] = "ffplay";
 //    const char *filePath = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
 //    char *argv[] = {"ffplay", "-f", "mpeg2video", "-video_size", "200x200", (char *)filePath};
     
-//    input_filename = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
-    input_filename = "udp://@192.168.1.3:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
+//    input_filename = "udp://@192.168.1.3:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 
     display_disable = NO;
 
@@ -3117,6 +3199,9 @@ const char program_name[] = "ffplay";
         fprintf(stderr, "Failed to initialize VideoState!\n");
         do_exit(NULL);
     }
+    
+//    [self performSelectorOnMainThread:@selector(showVideoThread) withObject:nil waitUntilDone:NO];
+    [self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
     
     event_loop(is);
     
@@ -3212,6 +3297,110 @@ const char program_name[] = "ffplay";
 ////    return 0;
 }
 
+static NSData * copyFrameData(UInt8 *src, int linesize, int width, int height)
+{
+    width = MIN(linesize, width);
+    NSMutableData *md = [NSMutableData dataWithLength: width * height];
+    Byte *dst = md.mutableBytes;
+    for (NSUInteger i = 0; i < height; ++i) {
+        memcpy(dst, src, width);
+        dst += width;
+        src += linesize;
+    }
+    return md;
+}
+
+
+static UIImage *showImage;
+static void imageFromAVPicture(AVPicture pict, int width, int height) {
+    NSLog(@"图片转换");
+    NSData *data1 = copyFrameData(pict.data[0],
+                                  pict.linesize[0],
+                                  width,
+                                  height);
+    NSData *data2 = copyFrameData(pict.data[1],
+                                  pict.linesize[1],
+                                  width / 2,
+                                  height / 2);
+    NSData *data3 = copyFrameData(pict.data[2],
+                                  pict.linesize[2],
+                                  width / 2,
+                                  height / 2);
+    
+    
+	CGBitmapInfo bitmapInfo = kCGBitmapByteOrderDefault;
+	CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, data1.bytes, data1.length,kCFAllocatorNull);
+//    CFMutableDataRef data = CFDataCreateMutable(kCFAllocatorDefault, data1.length + data2.length + data3.length);
+//    
+//    CFDataAppendBytes(data, data1.bytes, data1.length);
+//    CFDataAppendBytes(data, data2.bytes, data2.length);
+//    CFDataAppendBytes(data, data3.bytes, data3.length);
+
+
+    ///////////////
+    
+	CGDataProviderRef provider = CGDataProviderCreateWithCFData(data);
+	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+	CGImageRef cgImage = CGImageCreate(width,
+									   height,
+									   8,
+									   24,
+									   pict.linesize[0],
+									   colorSpace,
+									   bitmapInfo,
+									   provider,
+									   NULL,
+									   NO,
+									   kCGRenderingIntentDefault);
+	CGColorSpaceRelease(colorSpace);
+	UIImage *image = [UIImage imageWithCGImage:cgImage];
+	CGImageRelease(cgImage);
+	CGDataProviderRelease(provider);
+	CFRelease(data);
+	
+    showImage = image;
+    
+    if (showImage) {
+        showImage = [UIImage imageNamed:@"1.jpg"];
+    }
+}
+
+
+- (void)showVideoThread {
+    for (; ; ) {
+//        if (showImage) {
+//            NSLog(@"x显示图片 ");
+//            [showImageView setImage:showImage];
+//
+//        }
+        
+        if (kxVideoFrame) {
+            NSLog(@"x显示图片 ");
+//            [_glView render:kxVideoFrame];
+//            kxVideoFrame = nil;
+            
+            @synchronized(kxVideoFrame) {
+//                dispatch_async(dispatch_get_main_queue(), ^{
+//                        [_glView render:kxVideoFrame];
+//                        kxVideoFrame = nil;
+//                    });
+                [_glView render:kxVideoFrame];
+                kxVideoFrame = nil;
+            }
+//            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+//                [_glView render:kxVideoFrame];
+//                
+//            });
+        }
+    }
+}
+- (UIView *) frameView
+{
+    if (!_glView) {
+        _glView = [[KxMovieGLView alloc] initWithFrame:self.view.bounds decoder:nil];
+    }
+    return _glView;
+}
 #pragma mark -
 #pragma mark FFMPEG SDL
 //static int packet_queue_put(PacketQueue *q, AVPacket *pkt);

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6251FF491715296D00AED4EA /* KxMovieGLView.m in Sources */ = {isa = PBXBuildFile; fileRef = 6251FF481715296D00AED4EA /* KxMovieGLView.m */; };
+		6251FF4C17152D8800AED4EA /* KxMovieDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 6251FF4B17152D8800AED4EA /* KxMovieDecoder.m */; };
+		6251FF4E1715409B00AED4EA /* 2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 6251FF4D1715405800AED4EA /* 2.mp4 */; };
+		6275509017113B0200E26216 /* 1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 6275508F17113B0200E26216 /* 1.jpg */; };
 		62B259D2167AD2AD00594873 /* FSFFPLAYViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 62B259D0167AD2AD00594873 /* FSFFPLAYViewController.m */; };
 		62B25A11167B1D6B00594873 /* FSFFPLAYVideoPlayAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 62B25A0E167B1D6B00594873 /* FSFFPLAYVideoPlayAppDelegate.m */; };
 		62C3EF6216795CCD00F416E6 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 62C3EF6116795CCD00F416E6 /* UIKit.framework */; };
@@ -28,12 +32,20 @@
 		62C3EF9C1679601D00F416E6 /* libbz2.1.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 62C3EF9116795FE000F416E6 /* libbz2.1.0.dylib */; };
 		62C3EF9D1679601D00F416E6 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 62C3EF8F16795FD800F416E6 /* libz.dylib */; };
 		62C3EFA0167969EF00F416E6 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 62C3EF9E167969E800F416E6 /* QuartzCore.framework */; };
-		62C3EFA21679756F00F416E6 /* 1.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 62C3EFA11679756F00F416E6 /* 1.mp4 */; };
 		62CC2A9A1682A2B100AC043A /* cmdutils.c in Sources */ = {isa = PBXBuildFile; fileRef = 62CC2A981682A2B100AC043A /* cmdutils.c */; };
 		62CC2A9C1682AF4D00AC043A /* FSFFPLAYViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 62CC2A9B1682AF4D00AC043A /* FSFFPLAYViewController.xib */; };
+		62D44A9417124F4100E91081 /* sophie.mov in Resources */ = {isa = PBXBuildFile; fileRef = 62D44A9317124F4100E91081 /* sophie.mov */; };
+		62D44A95171259F000E91081 /* 1.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 6275508E17110EF500E26216 /* 1.mp4 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6251FF471715296D00AED4EA /* KxMovieGLView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KxMovieGLView.h; sourceTree = "<group>"; };
+		6251FF481715296D00AED4EA /* KxMovieGLView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = KxMovieGLView.m; sourceTree = "<group>"; };
+		6251FF4A17152D8800AED4EA /* KxMovieDecoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KxMovieDecoder.h; sourceTree = "<group>"; };
+		6251FF4B17152D8800AED4EA /* KxMovieDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = KxMovieDecoder.m; sourceTree = "<group>"; };
+		6251FF4D1715405800AED4EA /* 2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = 2.mp4; path = ../../../../../Resource/presolveVideos/2.mp4; sourceTree = "<group>"; };
+		6275508E17110EF500E26216 /* 1.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = 1.mp4; path = ../../../../../Resource/vedios/1.mp4; sourceTree = "<group>"; };
+		6275508F17113B0200E26216 /* 1.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = 1.jpg; sourceTree = "<group>"; };
 		62B259CF167AD2AD00594873 /* FSFFPLAYViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FSFFPLAYViewController.h; sourceTree = "<group>"; };
 		62B259D0167AD2AD00594873 /* FSFFPLAYViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FSFFPLAYViewController.m; sourceTree = "<group>"; };
 		62B25A0D167B1D6B00594873 /* FSFFPLAYVideoPlayAppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FSFFPLAYVideoPlayAppDelegate.h; sourceTree = "<group>"; };
@@ -60,10 +72,10 @@
 		62C3EF9516795FF500F416E6 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		62C3EF971679600800F416E6 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		62C3EF9E167969E800F416E6 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
-		62C3EFA11679756F00F416E6 /* 1.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = 1.mp4; path = ../../../../Resource/presolveVideos/1.mp4; sourceTree = "<group>"; };
 		62CC2A981682A2B100AC043A /* cmdutils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cmdutils.c; sourceTree = "<group>"; };
 		62CC2A991682A2B100AC043A /* cmdutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cmdutils.h; sourceTree = "<group>"; };
 		62CC2A9B1682AF4D00AC043A /* FSFFPLAYViewController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = FSFFPLAYViewController.xib; sourceTree = "<group>"; };
+		62D44A9317124F4100E91081 /* sophie.mov */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; name = sophie.mov; path = "../../../../Test/iFrameExtractor(测试udp， rtsp)/sophie.mov"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +156,10 @@
 				62B259CF167AD2AD00594873 /* FSFFPLAYViewController.h */,
 				62B259D0167AD2AD00594873 /* FSFFPLAYViewController.m */,
 				62CC2A9B1682AF4D00AC043A /* FSFFPLAYViewController.xib */,
+				6251FF471715296D00AED4EA /* KxMovieGLView.h */,
+				6251FF481715296D00AED4EA /* KxMovieGLView.m */,
+				6251FF4A17152D8800AED4EA /* KxMovieDecoder.h */,
+				6251FF4B17152D8800AED4EA /* KxMovieDecoder.m */,
 				62B259D5167B002300594873 /* ffmpegclasses */,
 				62C3EF7E16795DC200F416E6 /* libs */,
 				62C3EF6816795CCD00F416E6 /* Supporting Files */,
@@ -154,7 +170,10 @@
 		62C3EF6816795CCD00F416E6 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
-				62C3EFA11679756F00F416E6 /* 1.mp4 */,
+				62D44A9317124F4100E91081 /* sophie.mov */,
+				6275508F17113B0200E26216 /* 1.jpg */,
+				6275508E17110EF500E26216 /* 1.mp4 */,
+				6251FF4D1715405800AED4EA /* 2.mp4 */,
 				62C3EF6916795CCD00F416E6 /* TestPlayWithFFMPEGAndSDL-Info.plist */,
 				62C3EF6A16795CCD00F416E6 /* InfoPlist.strings */,
 				62C3EF6D16795CCD00F416E6 /* main.m */,
@@ -229,8 +248,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				62C3EF6C16795CCD00F416E6 /* InfoPlist.strings in Resources */,
-				62C3EFA21679756F00F416E6 /* 1.mp4 in Resources */,
 				62CC2A9C1682AF4D00AC043A /* FSFFPLAYViewController.xib in Resources */,
+				6275509017113B0200E26216 /* 1.jpg in Resources */,
+				62D44A9417124F4100E91081 /* sophie.mov in Resources */,
+				62D44A95171259F000E91081 /* 1.mp4 in Resources */,
+				6251FF4E1715409B00AED4EA /* 2.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,6 +267,8 @@
 				62B259D2167AD2AD00594873 /* FSFFPLAYViewController.m in Sources */,
 				62B25A11167B1D6B00594873 /* FSFFPLAYVideoPlayAppDelegate.m in Sources */,
 				62CC2A9A1682A2B100AC043A /* cmdutils.c in Sources */,
+				6251FF491715296D00AED4EA /* KxMovieGLView.m in Sources */,
+				6251FF4C17152D8800AED4EA /* KxMovieDecoder.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +332,7 @@
 		62C3EF7C16795CCD00F416E6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = armv7;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: lantao fang (JJ5J8YCWQ8)";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "TestPlayWithFFMPEGAndSDL/TestPlayWithFFMPEGAndSDL-Prefix.pch";
@@ -325,8 +350,9 @@
 					"\"$(SRCROOT)/TestPlayWithFFMPEGAndSDL/libs\"",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				"PROVISIONING_PROFILE[sdk=iphoneos*]" = "DAF65EE6-8958-47F2-9665-E3DA4644F53D";
+				"PROVISIONING_PROFILE[sdk=iphoneos*]" = "A99DFEDB-0E91-4729-B9B4-23933304165F";
 				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = armv7;
 				WRAPPER_EXTENSION = app;
 			};
 			name = Debug;
@@ -334,6 +360,7 @@
 		62C3EF7D16795CCD00F416E6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = armv7;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "TestPlayWithFFMPEGAndSDL/TestPlayWithFFMPEGAndSDL-Prefix.pch";
 				GCC_VERSION = "";
@@ -351,6 +378,7 @@
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = armv7;
 				WRAPPER_EXTENSION = app;
 			};
 			name = Release;

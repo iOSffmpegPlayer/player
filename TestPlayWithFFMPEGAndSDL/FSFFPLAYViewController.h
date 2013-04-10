@@ -45,6 +45,8 @@
 
 #include <assert.h>
 
+#import "KxMovieGLView.h"
+#import "KxMovieDecoder.h"
 
 //const int program_birth_year = 2003;
 
@@ -236,12 +238,23 @@ typedef struct VideoState {
 
 @interface FSFFPLAYViewController : UIViewController {
     IBOutlet UIImageView *showImageView;
+    
+    KxMovieGLView       *_glView;
 }
 
 - (void)startPlay;
+static NSData * copyFrameData(UInt8 *src, int linesize, int width, int height);
+
+static void imageFromAVPicture(AVPicture pict, int width, int height);
+
+- (void)showVideoThread;
 
 #pragma mark -
 #pragma mark 
+
+///
+
+///
 
 void av_noreturn exit_program(int ret);
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt);
