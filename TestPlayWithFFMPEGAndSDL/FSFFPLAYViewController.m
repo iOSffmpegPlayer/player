@@ -801,9 +801,9 @@ static int video_open(VideoState *is, int force_set_video_mode)
 /* display the current picture, if any */
 static void video_display(VideoState *is)
 {
-
+    NSLog(@"%s  %d", __FUNCTION__, __LINE__);
     //if (!screen)
-        video_open(is, 0);
+//        video_open(is, 0);
     if (is->audio_st && is->show_mode != SHOW_MODE_VIDEO)
     {
         video_audio_display(is);
@@ -1139,8 +1139,8 @@ static void alloc_picture(VideoState *is)
     
     vp = &is->pictq[is->pictq_windex];
     
-    if (vp->bmp)
-        SDL_FreeYUVOverlay(vp->bmp);
+//    if (vp->bmp)
+//        SDL_FreeYUVOverlay(vp->bmp);
     
 #if CONFIG_AVFILTER
     avfilter_unref_bufferp(&vp->picref);
@@ -1214,8 +1214,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     
     /* alloc or resize hardware picture buffer */
 //    if (!vp->bmp || vp->reallocate || !vp->allocated ||
-    if (!vp->bmp || vp->reallocate || !vp->allocated ||
-
+    if ( vp->reallocate || !vp->allocated ||
         vp->width  != src_frame->width ||
         vp->height != src_frame->height) {
         SDL_Event event;
@@ -1251,7 +1250,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     
     /* if the frame is not skipped, then display it */
 //    if (vp->bmp) {
-        AVPicture pict = { { 0 } };
+//        AVPicture pict = { { 0 } };
 #if CONFIG_AVFILTER
         avfilter_unref_bufferp(&vp->picref);
         vp->picref = src_frame->opaque;
@@ -1268,22 +1267,22 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //        pict.linesize[1] = vp->bmp->pitches[2];
 //        pict.linesize[2] = vp->bmp->pitches[1];
     
-#if CONFIG_AVFILTER
+//#if CONFIG_AVFILTER
         // FIXME use direct rendering
 //        av_picture_copy(&pict, (AVPicture *)src_frame,
 //                        src_frame->format, vp->width, vp->height);
-#else
-        sws_flags = av_get_int(sws_opts, "sws_flags", NULL);
-        is->img_convert_ctx = sws_getCachedContext(is->img_convert_ctx,
-                                                   vp->width, vp->height, src_frame->format, vp->width, vp->height,
-                                                   PIX_FMT_YUV420P, sws_flags, NULL, NULL, NULL);
-        if (is->img_convert_ctx == NULL) {
-            fprintf(stderr, "Cannot initialize the conversion context\n");
-            exit(1);
-        }
-        sws_scale(is->img_convert_ctx, src_frame->data, src_frame->linesize,
-                  0, vp->height, pict.data, pict.linesize);
-#endif
+//#else
+//        sws_flags = av_get_int(sws_opts, "sws_flags", NULL);
+//        is->img_convert_ctx = sws_getCachedContext(is->img_convert_ctx,
+//                                                   vp->width, vp->height, src_frame->format, vp->width, vp->height,
+//                                                   PIX_FMT_YUV420P, sws_flags, NULL, NULL, NULL);
+//        if (is->img_convert_ctx == NULL) {
+//            fprintf(stderr, "Cannot initialize the conversion context\n");
+//            exit(1);
+//        }
+//        sws_scale(is->img_convert_ctx, src_frame->data, src_frame->linesize,
+//                  0, vp->height, pict.data, pict.linesize);
+//#endif
         /* update the bitmap content */
 //        SDL_UnlockYUVOverlay(vp->bmp);
     /*
@@ -1316,18 +1315,25 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     */
 //    imageFromAVPicture(*(AVPicture *)(src_frame), vp->width, vp->height);
 //
-//        vp->pts = pts;
-//        vp->pos = pos;
-//        vp->skip = 0;
-//        
-//        /* now we can update the picture count */
-//        if (++is->pictq_windex == VIDEO_PICTURE_QUEUE_SIZE)
-//            is->pictq_windex = 0;
-//        SDL_LockMutex(is->pictq_mutex);
-//        is->pictq_size++;
-//        SDL_UnlockMutex(is->pictq_mutex);
     
-    kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
+        avpicture_deinterlace((AVPicture*)src_frame,
+                              (AVPicture*)src_frame,
+                              is->video_st->codec->pix_fmt,
+                              is->video_st->codec->width,
+                              is->video_st->codec->height);
+        kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
+    
+        vp->pts = pts;
+        vp->pos = pos;
+        vp->skip = 0;
+        
+        /* now we can update the picture count */
+        if (++is->pictq_windex == VIDEO_PICTURE_QUEUE_SIZE)
+            is->pictq_windex = 0;
+        SDL_LockMutex(is->pictq_mutex);
+        is->pictq_size++;
+        SDL_UnlockMutex(is->pictq_mutex);
+
     
 //    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
 //        kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
@@ -2513,6 +2519,7 @@ static VideoState *stream_open(const char *filename, AVInputFormat *iformat)
     
     is->continue_read_thread = SDL_CreateCond();
     
+    //设置同步时钟为音频的时钟
     is->av_sync_type = av_sync_type;
     is->read_tid     = SDL_CreateThread(read_thread, "read_tid",  is);
     if (!is->read_tid) {
@@ -3379,14 +3386,14 @@ static void imageFromAVPicture(AVPicture pict, int width, int height) {
 //            [_glView render:kxVideoFrame];
 //            kxVideoFrame = nil;
             
-            @synchronized(kxVideoFrame) {
+//            @synchronized(kxVideoFrame) {
 //                dispatch_async(dispatch_get_main_queue(), ^{
 //                        [_glView render:kxVideoFrame];
 //                        kxVideoFrame = nil;
 //                    });
                 [_glView render:kxVideoFrame];
-                kxVideoFrame = nil;
-            }
+//                kxVideoFrame = nil;
+//            }
 //            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 //                [_glView render:kxVideoFrame];
 //                
