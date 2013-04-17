@@ -3127,7 +3127,7 @@ const char program_name[] = "ffplay";
 //    const char *filePath = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
 //    char *argv[] = {"ffplay", "-f", "mpeg2video", "-video_size", "200x200", (char *)filePath};
     
-    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
+    input_filename = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
 //    input_filename = "udp://@192.168.1.3:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 
     display_disable = NO;
