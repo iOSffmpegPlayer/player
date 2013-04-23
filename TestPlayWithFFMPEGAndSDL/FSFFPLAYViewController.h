@@ -277,7 +277,6 @@ static void video_audio_display(VideoState *s);
 static void stream_close(VideoState *is);
 static void do_exit(VideoState *is);
 static void sigterm_handler(int sig);
-static int video_open(VideoState *is, int force_set_video_mode);
 static void video_display(VideoState *is);
 static int refresh_thread(void *opaque);
 static double get_audio_clock(VideoState *is);
@@ -331,90 +330,5 @@ static int opt_codec(void *o, const char *opt, const char *arg);
 static void show_usage(void);
 void show_help_default(const char *opt, const char *arg);
 static int lockmgr(void **mtx, enum AVLockOp op);
-
-
-
-//
-//static int packet_queue_put(PacketQueue *q, AVPacket *pkt);
-//static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt);
-//static int packet_queue_put(PacketQueue *q, AVPacket *pkt);
-//static void packet_queue_init(PacketQueue *q);
-//static void packet_queue_flush(PacketQueue *q);
-//static void packet_queue_destroy(PacketQueue *q);
-//static void packet_queue_abort(PacketQueue *q);
-//static void packet_queue_start(PacketQueue *q);
-//static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block);
-//static inline void fill_rectangle(SDL_Surface *screen,
-//                                  int x, int y, int w, int h, int color, int update);
-//static void fill_border(int xleft, int ytop, int width, int height, int x, int y, int w, int h, int color, int update);
-//static void blend_subrect(AVPicture *dst, const AVSubtitleRect *rect, int imgw, int imgh);
-//static void free_subpicture(SubPicture *sp);
-//static void calculate_display_rect(SDL_Rect *rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, VideoPicture *vp);
-//static void video_image_display(VideoState *is);
-//static inline int compute_mod(int a, int b);
-//static void video_audio_display(VideoState *s);
-//static void stream_close(VideoState *is);
-//static void do_exit(VideoState *is);
-//static void sigterm_handler(int sig);
-//static int video_open(VideoState *is, int force_set_video_mode);
-//static void video_display(VideoState *is);
-//static int refresh_thread(void *opaque);
-//static double get_audio_clock(VideoState *is);
-//static double get_video_clock(VideoState *is);
-//static double get_external_clock(VideoState *is);
-//static int get_master_sync_type(VideoState *is);
-//static double get_master_clock(VideoState *is);
-//static void update_external_clock_pts(VideoState *is, double pts);
-//static void check_external_clock_sync(VideoState *is, double pts);
-//static void update_external_clock_speed(VideoState *is, double speed);
-//static void check_external_clock_speed(VideoState *is);
-//static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int seek_by_bytes);
-//static void stream_toggle_pause(VideoState *is);
-//static double compute_target_delay(double delay, VideoState *is);
-//static void pictq_next_picture(VideoState *is);
-//static void pictq_prev_picture(VideoState *is);
-//static void update_video_pts(VideoState *is, double pts, int64_t pos, int serial);
-//static void video_refresh(void *opaque);
-//static void alloc_picture(VideoState *is);
-//static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos, int serial);
-//static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacket *pkt, int *serial);
-//static int configure_filtergraph(AVFilterGraph *graph, const char *filtergraph,
-//                                 AVFilterContext *source_ctx, AVFilterContext *sink_ctx);
-//static int configure_video_filters(AVFilterGraph *graph, VideoState *is, const char *vfilters);
-//static int video_thread(void *arg);
-//static int subtitle_thread(void *arg);
-//static void update_sample_display(VideoState *is, short *samples, int samples_size);
-//static int synchronize_audio(VideoState *is, int nb_samples);
-//static int audio_decode_frame(VideoState *is, double *pts_ptr);
-//static void sdl_audio_callback(void *opaque, Uint8 *stream, int len);
-//static int audio_open(void *opaque, int64_t wanted_channel_layout, int wanted_nb_channels, int wanted_sample_rate, struct AudioParams *audio_hw_params);
-//static int stream_component_open(VideoState *is, int stream_index);
-//static void stream_component_close(VideoState *is, int stream_index);
-//static int decode_interrupt_cb(void *ctx);
-//static int is_realtime(AVFormatContext *s);
-//static int read_thread(void *arg);
-//static VideoState *stream_open(const char *filename, AVInputFormat *iformat);
-//static void stream_cycle_channel(VideoState *is, int codec_type);
-//static void toggle_full_screen(VideoState *is);
-//static void toggle_pause(VideoState *is);
-//static void step_to_next_frame(VideoState *is);
-//static void toggle_audio_display(VideoState *is);
-//static void event_loop(VideoState *cur_stream);
-//static int opt_frame_size(void *optctx, const char *opt, const char *arg);
-//static int opt_width(void *optctx, const char *opt, const char *arg);
-//static int opt_height(void *optctx, const char *opt, const char *arg);
-//static int opt_format(void *optctx, const char *opt, const char *arg);
-//static int opt_frame_pix_fmt(void *optctx, const char *opt, const char *arg);
-//static int opt_sync(void *optctx, const char *opt, const char *arg);
-//static int opt_seek(void *optctx, const char *opt, const char *arg);
-//static int opt_duration(void *optctx, const char *opt, const char *arg);
-//static int opt_show_mode(void *optctx, const char *opt, const char *arg);
-//static void opt_input_file(void *optctx, const char *filename);
-//static int opt_codec(void *o, const char *opt, const char *arg);
-//static void show_usage(void);
-//void show_help_default(const char *opt, const char *arg);
-//static int lockmgr(void **mtx, enum AVLockOp op);
-
-
 
 @end
