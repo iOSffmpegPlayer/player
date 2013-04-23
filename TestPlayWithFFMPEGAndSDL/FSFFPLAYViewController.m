@@ -14,9 +14,9 @@
 /* options specified by the user */
 static AVInputFormat *file_iformat;
 static const char *input_filename;
-static const char *window_title;
-static int fs_screen_width;
-static int fs_screen_height;
+//static const char *window_title;
+//static int fs_screen_width;
+//static int fs_screen_height;
 static int screen_width  = 0;
 static int screen_height = 0;
 static int audio_disable;
@@ -58,7 +58,7 @@ static char *vfilters = NULL;
 #endif
 
 /* current context */
-static int is_full_screen;
+//static int is_full_screen;
 static int64_t audio_callback_time;
 
 static AVPacket flush_pkt;
@@ -249,205 +249,7 @@ v = val & 0xff;\
 
 #define BPP 1
 
-static void blend_subrect(AVPicture *dst, const AVSubtitleRect *rect, int imgw, int imgh)
-{
-    int wrap, wrap3, width2, skip2;
-    int y, u, v, a, u1, v1, a1, w, h;
-    uint8_t *lum, *cb, *cr;
-    const uint8_t *p;
-    const uint32_t *pal;
-    int dstx, dsty, dstw, dsth;
-    
-    dstw = av_clip(rect->w, 0, imgw);
-    dsth = av_clip(rect->h, 0, imgh);
-    dstx = av_clip(rect->x, 0, imgw - dstw);
-    dsty = av_clip(rect->y, 0, imgh - dsth);
-    lum = dst->data[0] + dsty * dst->linesize[0];
-    cb  = dst->data[1] + (dsty >> 1) * dst->linesize[1];
-    cr  = dst->data[2] + (dsty >> 1) * dst->linesize[2];
-    
-    width2 = ((dstw + 1) >> 1) + (dstx & ~dstw & 1);
-    skip2 = dstx >> 1;
-    wrap = dst->linesize[0];
-    wrap3 = rect->pict.linesize[0];
-    p = rect->pict.data[0];
-    pal = (const uint32_t *)rect->pict.data[1];  /* Now in YCrCb! */
-    
-    if (dsty & 1) {
-        lum += dstx;
-        cb += skip2;
-        cr += skip2;
-        
-        if (dstx & 1) {
-            YUVA_IN(y, u, v, a, p, pal);
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a >> 2, cb[0], u, 0);
-            cr[0] = ALPHA_BLEND(a >> 2, cr[0], v, 0);
-            cb++;
-            cr++;
-            lum++;
-            p += BPP;
-        }
-        for (w = dstw - (dstx & 1); w >= 2; w -= 2) {
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 = u;
-            v1 = v;
-            a1 = a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            
-            YUVA_IN(y, u, v, a, p + BPP, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[1] = ALPHA_BLEND(a, lum[1], y, 0);
-            cb[0] = ALPHA_BLEND(a1 >> 2, cb[0], u1, 1);
-            cr[0] = ALPHA_BLEND(a1 >> 2, cr[0], v1, 1);
-            cb++;
-            cr++;
-            p += 2 * BPP;
-            lum += 2;
-        }
-        if (w) {
-            YUVA_IN(y, u, v, a, p, pal);
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a >> 2, cb[0], u, 0);
-            cr[0] = ALPHA_BLEND(a >> 2, cr[0], v, 0);
-            p++;
-            lum++;
-        }
-        p += wrap3 - dstw * BPP;
-        lum += wrap - dstw - dstx;
-        cb += dst->linesize[1] - width2 - skip2;
-        cr += dst->linesize[2] - width2 - skip2;
-    }
-    for (h = dsth - (dsty & 1); h >= 2; h -= 2) {
-        lum += dstx;
-        cb += skip2;
-        cr += skip2;
-        
-        if (dstx & 1) {
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 = u;
-            v1 = v;
-            a1 = a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            p += wrap3;
-            lum += wrap;
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a1 >> 2, cb[0], u1, 1);
-            cr[0] = ALPHA_BLEND(a1 >> 2, cr[0], v1, 1);
-            cb++;
-            cr++;
-            p += -wrap3 + BPP;
-            lum += -wrap + 1;
-        }
-        for (w = dstw - (dstx & 1); w >= 2; w -= 2) {
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 = u;
-            v1 = v;
-            a1 = a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            
-            YUVA_IN(y, u, v, a, p + BPP, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[1] = ALPHA_BLEND(a, lum[1], y, 0);
-            p += wrap3;
-            lum += wrap;
-            
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            
-            YUVA_IN(y, u, v, a, p + BPP, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[1] = ALPHA_BLEND(a, lum[1], y, 0);
-            
-            cb[0] = ALPHA_BLEND(a1 >> 2, cb[0], u1, 2);
-            cr[0] = ALPHA_BLEND(a1 >> 2, cr[0], v1, 2);
-            
-            cb++;
-            cr++;
-            p += -wrap3 + 2 * BPP;
-            lum += -wrap + 2;
-        }
-        if (w) {
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 = u;
-            v1 = v;
-            a1 = a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            p += wrap3;
-            lum += wrap;
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a1 >> 2, cb[0], u1, 1);
-            cr[0] = ALPHA_BLEND(a1 >> 2, cr[0], v1, 1);
-            cb++;
-            cr++;
-            p += -wrap3 + BPP;
-            lum += -wrap + 1;
-        }
-        p += wrap3 + (wrap3 - dstw * BPP);
-        lum += wrap + (wrap - dstw - dstx);
-        cb += dst->linesize[1] - width2 - skip2;
-        cr += dst->linesize[2] - width2 - skip2;
-    }
-    /* handle odd height */
-    if (h) {
-        lum += dstx;
-        cb += skip2;
-        cr += skip2;
-        
-        if (dstx & 1) {
-            YUVA_IN(y, u, v, a, p, pal);
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a >> 2, cb[0], u, 0);
-            cr[0] = ALPHA_BLEND(a >> 2, cr[0], v, 0);
-            cb++;
-            cr++;
-            lum++;
-            p += BPP;
-        }
-        for (w = dstw - (dstx & 1); w >= 2; w -= 2) {
-            YUVA_IN(y, u, v, a, p, pal);
-            u1 = u;
-            v1 = v;
-            a1 = a;
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            
-            YUVA_IN(y, u, v, a, p + BPP, pal);
-            u1 += u;
-            v1 += v;
-            a1 += a;
-            lum[1] = ALPHA_BLEND(a, lum[1], y, 0);
-            cb[0] = ALPHA_BLEND(a1 >> 2, cb[0], u, 1);
-            cr[0] = ALPHA_BLEND(a1 >> 2, cr[0], v, 1);
-            cb++;
-            cr++;
-            p += 2 * BPP;
-            lum += 2;
-        }
-        if (w) {
-            YUVA_IN(y, u, v, a, p, pal);
-            lum[0] = ALPHA_BLEND(a, lum[0], y, 0);
-            cb[0] = ALPHA_BLEND(a >> 2, cb[0], u, 0);
-            cr[0] = ALPHA_BLEND(a >> 2, cr[0], v, 0);
-        }
-    }
-}
+
 
 static void free_subpicture(SubPicture *sp)
 {
@@ -482,75 +284,6 @@ static void calculate_display_rect(SDL_Rect *rect, int scr_xleft, int scr_ytop, 
     rect->w = FFMAX(width,  1);
     rect->h = FFMAX(height, 1);
 }
-
-//static void video_image_display(VideoState *is)
-//{   
-//    NSLog(@"%s  %d", __FUNCTION__, __LINE__);
-//    VideoPicture *vp;
-//    SubPicture *sp;
-//    AVPicture pict;
-//    SDL_Rect rect;
-//    int i;
-//    
-//    vp = &is->pictq[is->pictq_rindex];
-////    if (vp->bmp) {
-////        if (is->subtitle_st) {
-////            if (is->subpq_size > 0) {
-////                sp = &is->subpq[is->subpq_rindex];
-////                
-////                if (vp->pts >= sp->pts + ((float) sp->sub.start_display_time / 1000)) {
-////                    SDL_LockYUVOverlay (vp->bmp);
-////                    
-////                    pict.data[0] = vp->bmp->pixels[0];
-////                    pict.data[1] = vp->bmp->pixels[2];
-////                    pict.data[2] = vp->bmp->pixels[1];
-////                    
-////                    pict.linesize[0] = vp->bmp->pitches[0];
-////                    pict.linesize[1] = vp->bmp->pitches[2];
-////                    pict.linesize[2] = vp->bmp->pitches[1];
-////                    
-////                    for (i = 0; i < sp->sub.num_rects; i++)
-////                        blend_subrect(&pict, sp->sub.rects[i],
-////                                      vp->bmp->w, vp->bmp->h);
-////                    
-////                    SDL_UnlockYUVOverlay (vp->bmp);
-////                }
-////            }
-////        }
-////        
-////        calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp);
-////
-////        SDL_DisplayYUVOverlay(vp->bmp, &rect);
-////
-////    }
-//
-////    struct SwsContext *img_convert_ctx;
-////    
-////    // Release old picture and scaler
-////	avpicture_free(&pict);
-//////	sws_freeContext(img_convert_ctx);
-////	
-////	// Allocate RGB picture
-////	avpicture_alloc(&pict, PIX_FMT_RGB24, vp->width, vp->height);
-////	
-////	// Setup scaler
-////	static int sws_flags =  SWS_FAST_BILINEAR;
-////	img_convert_ctx = sws_getContext(is->video_st->codec->width,
-////									 is->video_st->codec->height,
-////									 is->video_st->codec->pix_fmt,
-////									 vp->width,
-////									 vp->height,
-////									 PIX_FMT_RGB24,
-////									 sws_flags, NULL, NULL, NULL);
-////    sws_scale (img_convert_ctx, is->frame->data, is->frame->linesize,
-////			   0, is->video_st->codec->height,
-////			   pict.data, pict.linesize);
-////    imageFromAVPicture(pict, vp->width, vp->height);
-////    imageFromAVPicture(*(AVPicture *)(is->frame), vp->width, vp->height);
-////    kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:is->frame andvideoCodecCtx:is->video_st->codec];
-//
-//}
-
 
 static void stream_close(VideoState *is)
 {
@@ -1024,9 +757,14 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         avfilter_unref_bufferp(&vp->picref);
         vp->picref = src_frame->opaque;
 #endif
-
+    SDL_LockMutex(is->pictq_mutex);
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+//    @synchronized (kxVideoFrame) {
         kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
-    
+
+//    }
+    [pool release];
+    SDL_UnlockMutex(is->pictq_mutex);
         vp->pts = pts;
         vp->pos = pos;
         vp->skip = 0;
@@ -1043,6 +781,8 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 
 static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacket *pkt)
 {
+    SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
+
     int got_picture, i;
     
     if (packet_queue_get(&is->videoq, pkt, 1) < 0)
@@ -1211,6 +951,7 @@ static int configure_video_filters(AVFilterGraph *graph, VideoState *is, const c
 
 static int video_thread(void *arg)
 {
+    
     AVPacket pkt = { 0 };
     VideoState *is = arg;
     AVFrame *frame = avcodec_alloc_frame();
@@ -1239,6 +980,7 @@ static int video_thread(void *arg)
         AVFilterBufferRef *picref;
         AVRational tb;
 #endif
+
         while (is->paused && !is->videoq.abort_request)
             SDL_Delay(10);
         
@@ -1249,12 +991,9 @@ static int video_thread(void *arg)
         if (ret < 0)
             goto the_end;
         
-//        if (!ret) {
-//            
-//            SDL_Delay(10);
-//            continue;
-//
-//        }
+        if (!ret) {
+            continue;
+        }
         
 #if CONFIG_AVFILTER
         if (   last_w != is->video_st->codec->width
@@ -2626,19 +2365,32 @@ const char program_name[] = "ffplay";
         do_exit(NULL);
     }
 
-    [self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
+//    [self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
+    //[self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
+    
+    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(showVideoThread) userInfo:NULL repeats:YES];
+    
     
     event_loop(is);
 }
 - (void)showVideoThread {
-    for (; ; ) {
+//    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+//
+//    for (; ; ) {
+//        @synchronized (kxVideoFrame) {
+            if (kxVideoFrame) {
+                
+                [_glView render:kxVideoFrame];
+                [kxVideoFrame release];
+                kxVideoFrame = nil;
+//                [_glView performSelectorOnMainThread:@selector(render:) withObject:kxVideoFrame waitUntilDone:YES];
+                
+            }
+//        }
+//    }
+    
+//    [pool release];
 
-        if (kxVideoFrame) {
-
-            [_glView render:kxVideoFrame];
-
-        }
-    }
 }
 - (UIView *) frameView
 {
