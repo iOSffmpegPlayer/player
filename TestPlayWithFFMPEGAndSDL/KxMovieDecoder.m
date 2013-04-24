@@ -1221,8 +1221,8 @@ static int interrupt_callback(void *ctx);
     frame.height = videoCodecCtx->height;
 //    frame.width = 1280;
 //    frame.height = 544;
-    frame.position = av_frame_get_best_effort_timestamp(avframe) * _videoTimeBase;
-//    
+//    frame.position = av_frame_get_best_effort_timestamp(avframe) * _videoTimeBase;
+//
 //    const int64_t frameDuration = av_frame_get_pkt_duration(avframe);
 //    if (frameDuration) {
 //        
