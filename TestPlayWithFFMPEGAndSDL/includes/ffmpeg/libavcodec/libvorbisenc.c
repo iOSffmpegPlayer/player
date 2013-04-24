@@ -305,7 +305,7 @@ static int oggvorbis_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
             av_log(avctx, AV_LOG_ERROR, "error in vorbis_analysis_wrote()\n");
             return vorbis_error_to_averror(ret);
         }
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     } else {
         if (!s->eof)
@@ -348,7 +348,7 @@ static int oggvorbis_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     av_fifo_generic_read(s->pkt_fifo, &op, sizeof(ogg_packet), NULL);
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, op.bytes)))
+    if ((ret = ff_alloc_packet2(avctx, avpkt, op.bytes)) < 0)
         return ret;
     av_fifo_generic_read(s->pkt_fifo, avpkt->data, op.bytes, NULL);
 

@@ -86,28 +86,20 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
 
 static int query_formats(AVFilterContext *ctx)
 {
-    enum AVPixelFormat pix_fmts[] = {
-        AV_PIX_FMT_ARGB,         AV_PIX_FMT_RGBA,
-        AV_PIX_FMT_ABGR,         AV_PIX_FMT_BGRA,
-        AV_PIX_FMT_RGB24,        AV_PIX_FMT_BGR24,
-        AV_PIX_FMT_RGB565BE,     AV_PIX_FMT_RGB565LE,
-        AV_PIX_FMT_RGB555BE,     AV_PIX_FMT_RGB555LE,
-        AV_PIX_FMT_BGR565BE,     AV_PIX_FMT_BGR565LE,
-        AV_PIX_FMT_BGR555BE,     AV_PIX_FMT_BGR555LE,
-        AV_PIX_FMT_GRAY16BE,     AV_PIX_FMT_GRAY16LE,
-        AV_PIX_FMT_YUV420P16LE,  AV_PIX_FMT_YUV420P16BE,
-        AV_PIX_FMT_YUV444P16LE,  AV_PIX_FMT_YUV444P16BE,
-        AV_PIX_FMT_NV12,         AV_PIX_FMT_NV21,
-        AV_PIX_FMT_RGB8,         AV_PIX_FMT_BGR8,
-        AV_PIX_FMT_RGB4_BYTE,    AV_PIX_FMT_BGR4_BYTE,
-        AV_PIX_FMT_YUV444P,      AV_PIX_FMT_YUVJ444P,
-        AV_PIX_FMT_YUV420P,      AV_PIX_FMT_YUVJ420P,
-        AV_PIX_FMT_YUV410P,
-        AV_PIX_FMT_YUVA420P,     AV_PIX_FMT_GRAY8,
-        AV_PIX_FMT_NONE
-    };
+    AVFilterFormats *pix_fmts = NULL;
+    int fmt;
 
-    ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
+    for (fmt = 0; fmt < AV_PIX_FMT_NB; fmt++) {
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
+        if (!(desc->flags & PIX_FMT_PAL ||
+              desc->flags & PIX_FMT_HWACCEL ||
+              desc->flags & PIX_FMT_BITSTREAM ||
+              desc->log2_chroma_w != desc->log2_chroma_h))
+            ff_add_format(&pix_fmts, fmt);
+    }
+
+
+    ff_set_common_formats(ctx, pix_fmts);
     return 0;
 }
 
@@ -165,106 +157,94 @@ static AVFilterBufferRef *get_video_buffer(AVFilterLink *inlink, int perms, int 
         ff_default_get_video_buffer(inlink, perms, w, h);
 }
 
-static int start_frame(AVFilterLink *inlink, AVFilterBufferRef *picref)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *in)
 {
     TransContext *trans = inlink->dst->priv;
     AVFilterLink *outlink = inlink->dst->outputs[0];
-    AVFilterBufferRef *buf_out;
+    AVFilterBufferRef *out;
+    int plane;
 
     if (trans->passthrough)
-        return ff_null_start_frame(inlink, picref);
+        return ff_filter_frame(outlink, in);
 
-    outlink->out_buf = ff_get_video_buffer(outlink, AV_PERM_WRITE,
-                                           outlink->w, outlink->h);
-    if (!outlink->out_buf)
+    out = ff_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
+    if (!out) {
+        avfilter_unref_bufferp(&in);
         return AVERROR(ENOMEM);
-
-    outlink->out_buf->pts = picref->pts;
-
-    if (picref->video->sample_aspect_ratio.num == 0) {
-        outlink->out_buf->video->sample_aspect_ratio = picref->video->sample_aspect_ratio;
-    } else {
-        outlink->out_buf->video->sample_aspect_ratio.num = picref->video->sample_aspect_ratio.den;
-        outlink->out_buf->video->sample_aspect_ratio.den = picref->video->sample_aspect_ratio.num;
     }
 
-    buf_out = avfilter_ref_buffer(outlink->out_buf, ~0);
-    if (!buf_out)
-        return AVERROR(ENOMEM);
-    return ff_start_frame(outlink, buf_out);
-}
+    out->pts = in->pts;
 
-static int end_frame(AVFilterLink *inlink)
-{
-    TransContext *trans = inlink->dst->priv;
-    AVFilterBufferRef *inpic  = inlink->cur_buf;
-    AVFilterBufferRef *outpic = inlink->dst->outputs[0]->out_buf;
-    AVFilterLink *outlink = inlink->dst->outputs[0];
-    int plane, ret;
+    if (in->video->sample_aspect_ratio.num == 0) {
+        out->video->sample_aspect_ratio = in->video->sample_aspect_ratio;
+    } else {
+        out->video->sample_aspect_ratio.num = in->video->sample_aspect_ratio.den;
+        out->video->sample_aspect_ratio.den = in->video->sample_aspect_ratio.num;
+    }
 
-    if (trans->passthrough)
-        return ff_null_end_frame(inlink);
-
-    for (plane = 0; outpic->data[plane]; plane++) {
+    for (plane = 0; out->data[plane]; plane++) {
         int hsub = plane == 1 || plane == 2 ? trans->hsub : 0;
         int vsub = plane == 1 || plane == 2 ? trans->vsub : 0;
         int pixstep = trans->pixsteps[plane];
-        int inh  = inpic->video->h>>vsub;
-        int outw = outpic->video->w>>hsub;
-        int outh = outpic->video->h>>vsub;
-        uint8_t *out, *in;
-        int outlinesize, inlinesize;
+        int inh  = in->video->h>>vsub;
+        int outw = out->video->w>>hsub;
+        int outh = out->video->h>>vsub;
+        uint8_t *dst, *src;
+        int dstlinesize, srclinesize;
         int x, y;
 
-        out = outpic->data[plane]; outlinesize = outpic->linesize[plane];
-        in  = inpic ->data[plane]; inlinesize  = inpic ->linesize[plane];
+        dst = out->data[plane];
+        dstlinesize = out->linesize[plane];
+        src = in->data[plane];
+        srclinesize = in->linesize[plane];
 
         if (trans->dir&1) {
-            in +=  inpic->linesize[plane] * (inh-1);
-            inlinesize *= -1;
+            src +=  in->linesize[plane] * (inh-1);
+            srclinesize *= -1;
         }
 
         if (trans->dir&2) {
-            out += outpic->linesize[plane] * (outh-1);
-            outlinesize *= -1;
+            dst += out->linesize[plane] * (outh-1);
+            dstlinesize *= -1;
         }
 
         for (y = 0; y < outh; y++) {
             switch (pixstep) {
             case 1:
                 for (x = 0; x < outw; x++)
-                    out[x] = in[x*inlinesize + y];
+                    dst[x] = src[x*srclinesize + y];
                 break;
             case 2:
                 for (x = 0; x < outw; x++)
-                    *((uint16_t *)(out + 2*x)) = *((uint16_t *)(in + x*inlinesize + y*2));
+                    *((uint16_t *)(dst + 2*x)) = *((uint16_t *)(src + x*srclinesize + y*2));
                 break;
             case 3:
                 for (x = 0; x < outw; x++) {
-                    int32_t v = AV_RB24(in + x*inlinesize + y*3);
-                    AV_WB24(out + 3*x, v);
+                    int32_t v = AV_RB24(src + x*srclinesize + y*3);
+                    AV_WB24(dst + 3*x, v);
                 }
                 break;
             case 4:
                 for (x = 0; x < outw; x++)
-                    *((uint32_t *)(out + 4*x)) = *((uint32_t *)(in + x*inlinesize + y*4));
+                    *((uint32_t *)(dst + 4*x)) = *((uint32_t *)(src + x*srclinesize + y*4));
+                break;
+            case 6:
+                for (x = 0; x < outw; x++) {
+                    int64_t v = AV_RB48(src + x*srclinesize + y*6);
+                    AV_WB48(dst + 6*x, v);
+                }
+                break;
+            case 8:
+                for (x = 0; x < outw; x++)
+                    *((uint64_t *)(dst + 8*x)) = *((uint64_t *)(src + x*srclinesize + y*8));
                 break;
             }
-            out += outlinesize;
+            dst += dstlinesize;
         }
     }
 
-    if ((ret = ff_draw_slice(outlink, 0, outpic->video->h, 1)) < 0 ||
-        (ret = ff_end_frame(outlink)) < 0)
-        return ret;
-    return 0;
-}
-
-static int draw_slice(AVFilterLink *inlink, int y, int h, int slice_dir)
-{
-    TransContext *trans = inlink->dst->priv;
-
-    return trans->passthrough ? ff_null_draw_slice(inlink, y, h, slice_dir) : 0;
+    avfilter_unref_bufferp(&in);
+    return ff_filter_frame(outlink, out);
 }
 
 static const AVFilterPad avfilter_vf_transpose_inputs[] = {
@@ -272,9 +252,7 @@ static const AVFilterPad avfilter_vf_transpose_inputs[] = {
         .name        = "default",
         .type        = AVMEDIA_TYPE_VIDEO,
         .get_video_buffer= get_video_buffer,
-        .start_frame = start_frame,
-        .draw_slice  = draw_slice,
-        .end_frame   = end_frame,
+        .filter_frame = filter_frame,
         .min_perms   = AV_PERM_READ,
     },
     { NULL }

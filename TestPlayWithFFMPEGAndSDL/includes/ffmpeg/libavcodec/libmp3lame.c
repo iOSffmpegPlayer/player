@@ -28,12 +28,12 @@
 
 #include "libavutil/channel_layout.h"
 #include "libavutil/common.h"
+#include "libavutil/float_dsp.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/log.h"
 #include "libavutil/opt.h"
 #include "avcodec.h"
 #include "audio_frame_queue.h"
-#include "dsputil.h"
 #include "internal.h"
 #include "mpegaudio.h"
 #include "mpegaudiodecheader.h"
@@ -50,7 +50,7 @@ typedef struct LAMEContext {
     int reservoir;
     float *samples_flt[2];
     AudioFrameQueue afq;
-    DSPContext dsp;
+    AVFloatDSPContext fdsp;
 } LAMEContext;
 
 
@@ -168,7 +168,7 @@ static av_cold int mp3lame_encode_init(AVCodecContext *avctx)
     if (ret < 0)
         goto error;
 
-    ff_dsputil_init(&s->dsp, avctx);
+    avpriv_float_dsp_init(&s->fdsp, avctx->flags & CODEC_FLAG_BITEXACT);
 
     return 0;
 error:
@@ -206,10 +206,10 @@ static int mp3lame_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
                 return AVERROR(EINVAL);
             }
             for (ch = 0; ch < avctx->channels; ch++) {
-                s->dsp.vector_fmul_scalar(s->samples_flt[ch],
-                                          (const float *)frame->data[ch],
-                                          32768.0f,
-                                          FFALIGN(frame->nb_samples, 8));
+                s->fdsp.vector_fmul_scalar(s->samples_flt[ch],
+                                           (const float *)frame->data[ch],
+                                           32768.0f,
+                                           FFALIGN(frame->nb_samples, 8));
             }
             ENCODE_BUFFER(lame_encode_buffer_float, float, s->samples_flt);
             break;
@@ -237,7 +237,7 @@ static int mp3lame_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     /* add current frame to the queue */
     if (frame) {
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     }
 
@@ -254,7 +254,7 @@ static int mp3lame_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     av_dlog(avctx, "in:%d packet-len:%d index:%d\n", avctx->frame_size, len,
             s->buffer_index);
     if (len <= s->buffer_index) {
-        if ((ret = ff_alloc_packet2(avctx, avpkt, len)))
+        if ((ret = ff_alloc_packet2(avctx, avpkt, len)) < 0)
             return ret;
         memcpy(avpkt->data, s->buffer, len);
         s->buffer_index -= len;

@@ -33,6 +33,7 @@
 
 #include "libavutil/channel_layout.h"
 #include "avcodec.h"
+#include "internal.h"
 #include "mathops.h"
 
 #define BITSTREAM_READER_LE
@@ -96,7 +97,7 @@ enum SmkBlockTypes {
  */
 static int smacker_decode_tree(GetBitContext *gb, HuffContext *hc, uint32_t prefix, int length)
 {
-    if(length > 32) {
+    if(length > 32 || length > 3*SMKTREE_BITS) {
         av_log(NULL, AV_LOG_ERROR, "length too long\n");
         return AVERROR_INVALIDDATA;
     }
@@ -205,29 +206,39 @@ static int smacker_decode_header_tree(SmackVContext *smk, GetBitContext *gb, int
     tmp2.values = av_mallocz(256 * sizeof(int));
 
     if(get_bits1(gb)) {
-        smacker_decode_tree(gb, &tmp1, 0, 0);
+        res = smacker_decode_tree(gb, &tmp1, 0, 0);
+        if (res < 0)
+            return res;
         skip_bits1(gb);
-        res = init_vlc(&vlc[0], SMKTREE_BITS, tmp1.length,
-                    tmp1.lengths, sizeof(int), sizeof(int),
-                    tmp1.bits, sizeof(uint32_t), sizeof(uint32_t), INIT_VLC_LE);
-        if(res < 0) {
-            av_log(smk->avctx, AV_LOG_ERROR, "Cannot build VLC table\n");
-            return AVERROR_INVALIDDATA;
+        if(tmp1.current > 1) {
+            res = init_vlc(&vlc[0], SMKTREE_BITS, tmp1.length,
+                        tmp1.lengths, sizeof(int), sizeof(int),
+                        tmp1.bits, sizeof(uint32_t), sizeof(uint32_t), INIT_VLC_LE);
+            if(res < 0) {
+                av_log(smk->avctx, AV_LOG_ERROR, "Cannot build VLC table\n");
+                return AVERROR_INVALIDDATA;
+            }
         }
-    } else {
+    }
+    if (!vlc[0].table) {
         av_log(smk->avctx, AV_LOG_ERROR, "Skipping low bytes tree\n");
     }
     if(get_bits1(gb)){
-        smacker_decode_tree(gb, &tmp2, 0, 0);
+        res = smacker_decode_tree(gb, &tmp2, 0, 0);
+        if (res < 0)
+            return res;
         skip_bits1(gb);
-        res = init_vlc(&vlc[1], SMKTREE_BITS, tmp2.length,
-                    tmp2.lengths, sizeof(int), sizeof(int),
-                    tmp2.bits, sizeof(uint32_t), sizeof(uint32_t), INIT_VLC_LE);
-        if(res < 0) {
-            av_log(smk->avctx, AV_LOG_ERROR, "Cannot build VLC table\n");
-            return AVERROR_INVALIDDATA;
+        if(tmp2.current > 1) {
+            res = init_vlc(&vlc[1], SMKTREE_BITS, tmp2.length,
+                        tmp2.lengths, sizeof(int), sizeof(int),
+                        tmp2.bits, sizeof(uint32_t), sizeof(uint32_t), INIT_VLC_LE);
+            if(res < 0) {
+                av_log(smk->avctx, AV_LOG_ERROR, "Cannot build VLC table\n");
+                return AVERROR_INVALIDDATA;
+            }
         }
-    } else {
+    }
+    if (!vlc[1].table) {
         av_log(smk->avctx, AV_LOG_ERROR, "Skipping high bytes tree\n");
     }
 
@@ -354,7 +365,8 @@ static av_always_inline int smk_get_code(GetBitContext *gb, int *recode, int *la
     return v;
 }
 
-static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPacket *avpkt)
+static int decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
+                        AVPacket *avpkt)
 {
     SmackVContext * const smk = avctx->priv_data;
     uint8_t *out;
@@ -501,7 +513,7 @@ static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPac
 
     }
 
-    *data_size = sizeof(AVFrame);
+    *got_frame = 1;
     *(AVFrame*)data = smk->pic;
 
     /* always report that the buffer was completely consumed */
@@ -560,23 +572,14 @@ static av_cold int decode_end(AVCodecContext *avctx)
 }
 
 
-typedef struct SmackerAudioContext {
-    AVFrame frame;
-} SmackerAudioContext;
-
 static av_cold int smka_decode_init(AVCodecContext *avctx)
 {
-    SmackerAudioContext *s = avctx->priv_data;
-
     if (avctx->channels < 1 || avctx->channels > 2) {
         av_log(avctx, AV_LOG_ERROR, "invalid number of channels\n");
         return AVERROR(EINVAL);
     }
     avctx->channel_layout = (avctx->channels==2) ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_MONO;
     avctx->sample_fmt = avctx->bits_per_coded_sample == 8 ? AV_SAMPLE_FMT_U8 : AV_SAMPLE_FMT_S16;
-
-    avcodec_get_frame_defaults(&s->frame);
-    avctx->coded_frame = &s->frame;
 
     return 0;
 }
@@ -587,7 +590,7 @@ static av_cold int smka_decode_init(AVCodecContext *avctx)
 static int smka_decode_frame(AVCodecContext *avctx, void *data,
                              int *got_frame_ptr, AVPacket *avpkt)
 {
-    SmackerAudioContext *s = avctx->priv_data;
+    AVFrame *frame     = data;
     const uint8_t *buf = avpkt->data;
     int buf_size = avpkt->size;
     GetBitContext gb;
@@ -608,6 +611,11 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
 
     unp_size = AV_RL32(buf);
 
+    if (unp_size > (1U<<24)) {
+        av_log(avctx, AV_LOG_ERROR, "packet is too big\n");
+        return AVERROR_INVALIDDATA;
+    }
+
     init_get_bits(&gb, buf + 4, (buf_size - 4) * 8);
 
     if(!get_bits1(&gb)){
@@ -627,13 +635,13 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
     }
 
     /* get output buffer */
-    s->frame.nb_samples = unp_size / (avctx->channels * (bits + 1));
-    if ((ret = avctx->get_buffer(avctx, &s->frame)) < 0) {
+    frame->nb_samples = unp_size / (avctx->channels * (bits + 1));
+    if ((ret = ff_get_buffer(avctx, frame)) < 0) {
         av_log(avctx, AV_LOG_ERROR, "get_buffer() failed\n");
         return ret;
     }
-    samples  = (int16_t *)s->frame.data[0];
-    samples8 =            s->frame.data[0];
+    samples  = (int16_t *)frame->data[0];
+    samples8 =            frame->data[0];
 
     // Initialize
     for(i = 0; i < (1 << (bits + stereo)); i++) {
@@ -644,7 +652,9 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
         h[i].lengths = av_mallocz(256 * sizeof(int));
         h[i].values = av_mallocz(256 * sizeof(int));
         skip_bits1(&gb);
-        smacker_decode_tree(&gb, &h[i], 0, 0);
+        res = smacker_decode_tree(&gb, &h[i], 0, 0);
+        if (res < 0)
+            return res;
         skip_bits1(&gb);
         if(h[i].current > 1) {
             res = init_vlc(&vlc[i], SMKTREE_BITS, h[i].length,
@@ -750,8 +760,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
         av_free(h[i].values);
     }
 
-    *got_frame_ptr   = 1;
-    *(AVFrame *)data = s->frame;
+    *got_frame_ptr = 1;
 
     return buf_size;
 }
@@ -772,7 +781,6 @@ AVCodec ff_smackaud_decoder = {
     .name           = "smackaud",
     .type           = AVMEDIA_TYPE_AUDIO,
     .id             = AV_CODEC_ID_SMACKAUDIO,
-    .priv_data_size = sizeof(SmackerAudioContext),
     .init           = smka_decode_init,
     .decode         = smka_decode_frame,
     .capabilities   = CODEC_CAP_DR1,

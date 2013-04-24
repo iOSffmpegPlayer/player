@@ -30,6 +30,7 @@
 #include "libavutil/intreadwrite.h"
 #include "avfilter.h"
 #include "formats.h"
+#include "internal.h"
 #include "video.h"
 
 typedef struct {
@@ -302,41 +303,51 @@ static int config_output(AVFilterLink *outlink)
     return 0;
 }
 
-static int null_draw_slice(AVFilterLink *inlink, int y, int h, int slice_dir) { return 0; }
-
-static int end_frame(AVFilterLink *inlink)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *inpicref)
 {
     AVFilterLink *outlink = inlink->dst->outputs[0];
-    AVFilterBufferRef  *inpicref =  inlink->cur_buf;
-    AVFilterBufferRef *outpicref = outlink->out_buf;
+    AVFilterBufferRef *outpicref = ff_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
+    if (!outpicref) {
+        avfilter_unref_bufferp(&inpicref);
+        return AVERROR(ENOMEM);
+    }
+    avfilter_copy_buffer_ref_props(outpicref, inpicref);
+    outpicref->video->w = outlink->w;
+    outpicref->video->h = outlink->h;
 
     super2xsai(inlink->dst, inpicref->data[0], inpicref->linesize[0],
                outpicref->data[0], outpicref->linesize[0],
                inlink->w, inlink->h);
 
-    ff_draw_slice(outlink, 0, outlink->h, 1);
-    return ff_end_frame(outlink);
+    avfilter_unref_bufferp(&inpicref);
+    return ff_filter_frame(outlink, outpicref);
 }
+
+static const AVFilterPad super2xsai_inputs[] = {
+    {
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_VIDEO,
+        .config_props = config_input,
+        .filter_frame = filter_frame,
+        .min_perms    = AV_PERM_READ,
+    },
+    { NULL }
+};
+
+static const AVFilterPad super2xsai_outputs[] = {
+    {
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_VIDEO,
+        .config_props = config_output,
+    },
+    { NULL }
+};
 
 AVFilter avfilter_vf_super2xsai = {
     .name        = "super2xsai",
     .description = NULL_IF_CONFIG_SMALL("Scale the input by 2x using the Super2xSaI pixel art algorithm."),
     .priv_size   = sizeof(Super2xSaIContext),
     .query_formats = query_formats,
-
-    .inputs = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_VIDEO,
-          .config_props     = config_input,
-          .draw_slice       = null_draw_slice,
-          .end_frame        = end_frame,
-          .min_perms        = AV_PERM_READ },
-        { .name = NULL }
-    },
-    .outputs = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_VIDEO,
-          .config_props     = config_output },
-        { .name = NULL }
-    },
+    .inputs        = super2xsai_inputs,
+    .outputs       = super2xsai_outputs,
 };

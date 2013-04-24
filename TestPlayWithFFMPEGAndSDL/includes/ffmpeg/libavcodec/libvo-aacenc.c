@@ -157,11 +157,11 @@ static int aac_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
             samples = (VO_PBYTE)frame->data[0];
         }
         /* add current frame to the queue */
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     }
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, FFMAX(8192, 768 * avctx->channels))))
+    if ((ret = ff_alloc_packet2(avctx, avpkt, FFMAX(8192, 768 * avctx->channels))) < 0)
         return ret;
 
     input.Buffer  = samples;

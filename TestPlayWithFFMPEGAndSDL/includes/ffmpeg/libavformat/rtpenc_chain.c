@@ -31,7 +31,7 @@ int ff_rtp_chain_mux_open(AVFormatContext **out, AVFormatContext *s,
                           int idx)
 {
     AVFormatContext *rtpctx = NULL;
-    int ret, pt;
+    int ret;
     AVOutputFormat *rtp_format = av_guess_format("rtp", NULL, NULL);
     uint8_t *rtpflags;
     AVDictionary *opts = NULL;
@@ -64,7 +64,7 @@ int ff_rtp_chain_mux_open(AVFormatContext **out, AVFormatContext *s,
     /* Get the payload type from the codec */
     if (st->id < RTP_PT_PRIVATE)
         rtpctx->streams[0]->id =
-            ff_rtp_get_payload_type(rtpctx, st->codec, idx);
+            ff_rtp_get_payload_type(s, st->codec, idx);
     else
         rtpctx->streams[0]->id = st->id;
 

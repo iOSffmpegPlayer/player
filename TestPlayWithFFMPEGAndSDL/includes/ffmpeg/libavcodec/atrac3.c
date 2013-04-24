@@ -43,6 +43,7 @@
 #include "fft.h"
 #include "fmtconvert.h"
 #include "get_bits.h"
+#include "internal.h"
 
 #include "atrac.h"
 #include "atrac3data.h"
@@ -86,7 +87,6 @@ typedef struct ChannelUnit {
 } ChannelUnit;
 
 typedef struct ATRAC3Context {
-    AVFrame frame;
     GetBitContext gb;
     //@{
     /** stream data */
@@ -517,7 +517,7 @@ static int add_tonal_components(float *spectrum, int num_components,
         output   = &spectrum[components[i].pos];
 
         for (j = 0; j < components[i].num_coefs; j++)
-            output[i] += input[i];
+            output[j] += input[j];
     }
 
     return last_pos;
@@ -739,7 +739,7 @@ static int decode_frame(AVCodecContext *avctx, const uint8_t *databuf,
 
 
         /* set the bitstream reader at the start of the second Sound Unit*/
-        init_get_bits(&q->gb, ptr1, avctx->block_align * 8);
+        init_get_bits8(&q->gb, ptr1, q->decoded_bytes_buffer + avctx->block_align - ptr1);
 
         /* Fill the Weighting coeffs delay buffer */
         memmove(q->weighting_delay, &q->weighting_delay[2],
@@ -798,6 +798,7 @@ static int decode_frame(AVCodecContext *avctx, const uint8_t *databuf,
 static int atrac3_decode_frame(AVCodecContext *avctx, void *data,
                                int *got_frame_ptr, AVPacket *avpkt)
 {
+    AVFrame *frame     = data;
     const uint8_t *buf = avpkt->data;
     int buf_size = avpkt->size;
     ATRAC3Context *q = avctx->priv_data;
@@ -811,8 +812,8 @@ static int atrac3_decode_frame(AVCodecContext *avctx, void *data,
     }
 
     /* get output buffer */
-    q->frame.nb_samples = SAMPLES_PER_FRAME;
-    if ((ret = avctx->get_buffer(avctx, &q->frame)) < 0) {
+    frame->nb_samples = SAMPLES_PER_FRAME;
+    if ((ret = ff_get_buffer(avctx, frame)) < 0) {
         av_log(avctx, AV_LOG_ERROR, "get_buffer() failed\n");
         return ret;
     }
@@ -825,19 +826,18 @@ static int atrac3_decode_frame(AVCodecContext *avctx, void *data,
         databuf = buf;
     }
 
-    ret = decode_frame(avctx, databuf, (float **)q->frame.extended_data);
+    ret = decode_frame(avctx, databuf, (float **)frame->extended_data);
     if (ret) {
         av_log(NULL, AV_LOG_ERROR, "Frame decoding error!\n");
         return ret;
     }
 
-    *got_frame_ptr   = 1;
-    *(AVFrame *)data = q->frame;
+    *got_frame_ptr = 1;
 
     return avctx->block_align;
 }
 
-static void atrac3_init_static_data(AVCodec *codec)
+static void atrac3_init_static_data(void)
 {
     int i;
 
@@ -864,6 +864,7 @@ static void atrac3_init_static_data(AVCodec *codec)
 
 static av_cold int atrac3_decode_init(AVCodecContext *avctx)
 {
+    static int static_init_done;
     int i, ret;
     int version, delay, samples_per_frame, frame_factor;
     const uint8_t *edata_ptr = avctx->extradata;
@@ -873,6 +874,10 @@ static av_cold int atrac3_decode_init(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_ERROR, "Channel configuration error!\n");
         return AVERROR(EINVAL);
     }
+
+    if (!static_init_done)
+        atrac3_init_static_data();
+    static_init_done = 1;
 
     /* Take care of the codec-specific extradata. */
     if (avctx->extradata_size == 14) {
@@ -902,7 +907,7 @@ static av_cold int atrac3_decode_init(AVCodecContext *avctx)
                    avctx->channels, frame_factor);
             return AVERROR_INVALIDDATA;
         }
-    } else if (avctx->extradata_size == 10) {
+    } else if (avctx->extradata_size == 12 || avctx->extradata_size == 10) {
         /* Parse the extradata, RM format. */
         version                = bytestream_get_be32(&edata_ptr);
         samples_per_frame      = bytestream_get_be16(&edata_ptr);
@@ -991,9 +996,6 @@ static av_cold int atrac3_decode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
-    avcodec_get_frame_defaults(&q->frame);
-    avctx->coded_frame = &q->frame;
-
     return 0;
 }
 
@@ -1003,7 +1005,6 @@ AVCodec ff_atrac3_decoder = {
     .id               = AV_CODEC_ID_ATRAC3,
     .priv_data_size   = sizeof(ATRAC3Context),
     .init             = atrac3_decode_init,
-    .init_static_data = atrac3_init_static_data,
     .close            = atrac3_decode_close,
     .decode           = atrac3_decode_frame,
     .capabilities     = CODEC_CAP_SUBFRAMES | CODEC_CAP_DR1,

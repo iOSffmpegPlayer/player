@@ -356,8 +356,7 @@ static int mov_write_esds_tag(AVIOContext *pb, MOVTrack *track) // Basic
     else
         avio_w8(pb, 0x11); // flags (= Visualstream)
 
-    avio_w8(pb,  track->enc->rc_buffer_size>>(3+16));      // Buffersize DB (24 bits)
-    avio_wb16(pb, (track->enc->rc_buffer_size>>3)&0xFFFF); // Buffersize DB
+    avio_wb24(pb, track->enc->rc_buffer_size >> 3); // Buffersize DB
 
     avg_bitrate = compute_avg_bitrate(track);
     // maxbitrate (FIXME should be max rate in any 1 sec window)
@@ -1128,12 +1127,16 @@ static int mov_write_video_tag(AVIOContext *pb, MOVTrack *track)
         mov_write_avcc_tag(pb, track);
         if(track->mode == MODE_IPOD)
             mov_write_uuid_tag_ipod(pb);
-    } else if (track->enc->field_order != AV_FIELD_UNKNOWN)
-        mov_write_fiel_tag(pb, track);
-    else if (track->enc->codec_id == AV_CODEC_ID_VC1 && track->vos_len > 0)
+    } else if (track->enc->codec_id == AV_CODEC_ID_VC1 && track->vos_len > 0)
         mov_write_dvc1_tag(pb, track);
     else if (track->vos_len > 0)
         mov_write_glbl_tag(pb, track);
+
+    if (track->enc->codec_id != AV_CODEC_ID_H264 &&
+        track->enc->codec_id != AV_CODEC_ID_MPEG4 &&
+        track->enc->codec_id != AV_CODEC_ID_DNXHD)
+        if (track->enc->field_order != AV_FIELD_UNKNOWN)
+            mov_write_fiel_tag(pb, track);
 
     if (track->enc->sample_aspect_ratio.den && track->enc->sample_aspect_ratio.num &&
         track->enc->sample_aspect_ratio.den != track->enc->sample_aspect_ratio.num) {
@@ -1147,7 +1150,12 @@ static int mov_write_tmcd_tag(AVIOContext *pb, MOVTrack *track)
 {
     int64_t pos = avio_tell(pb);
     int frame_duration = av_rescale(track->timescale, track->enc->time_base.num, track->enc->time_base.den);
-    int nb_frames = (track->timescale + frame_duration/2) / frame_duration;
+    int nb_frames = 1.0/av_q2d(track->enc->time_base) + 0.5;
+
+    if (nb_frames > 255) {
+        av_log(NULL, AV_LOG_ERROR, "fps %d is too large\n", nb_frames);
+        return AVERROR(EINVAL);
+    }
 
     avio_wb32(pb, 0); /* size */
     ffio_wfourcc(pb, "tmcd");               /* Data format */
@@ -1594,7 +1602,7 @@ static int mov_write_tkhd_tag(AVIOContext *pb, MOVTrack *track, AVStream *st)
     (version == 1) ? avio_wb32(pb, 104) : avio_wb32(pb, 92); /* size */
     ffio_wfourcc(pb, "tkhd");
     avio_w8(pb, version);
-    avio_wb24(pb, 0xf); /* flags (track enabled) */
+    avio_wb24(pb, track->secondary ? 0x2 : 0xf); /* flags (first track enabled) */
     if (version == 1) {
         avio_wb64(pb, track->time);
         avio_wb64(pb, track->time);
@@ -2307,6 +2315,7 @@ static int mov_write_moov_tag(AVIOContext *pb, MOVMuxContext *mov,
 {
     int i;
     int64_t pos = avio_tell(pb);
+    int not_first[AVMEDIA_TYPE_NB]={0};
     avio_wb32(pb, 0); /* size placeholder*/
     ffio_wfourcc(pb, "moov");
 
@@ -2347,6 +2356,13 @@ static int mov_write_moov_tag(AVIOContext *pb, MOVMuxContext *mov,
         mov_write_iods_tag(pb, mov);
     for (i=0; i<mov->nb_streams; i++) {
         if (mov->tracks[i].entry > 0 || mov->flags & FF_MOV_FLAG_FRAGMENT) {
+            if(i < s->nb_streams){
+                int codec_type= s->streams[i]->codec->codec_type;
+                if(codec_type==AVMEDIA_TYPE_AUDIO || codec_type==AVMEDIA_TYPE_SUBTITLE){
+                    mov->tracks[i].secondary= not_first[codec_type];
+                    not_first[codec_type]= 1;
+                }
+            }
             mov_write_trak_tag(pb, mov, &(mov->tracks[i]), i < s->nb_streams ? s->streams[i] : NULL);
         }
     }

@@ -24,6 +24,7 @@
  * Rich Felker.
  */
 
+#include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/timestamp.h"
 #include "libavcodec/dsputil.h"
@@ -33,6 +34,7 @@
 #include "video.h"
 
 typedef struct {
+    const AVClass *class;
     int lo, hi;                    ///< lower and higher threshold number of differences
                                    ///< values for 8x8 blocks
 
@@ -50,6 +52,20 @@ typedef struct {
     AVCodecContext *avctx;         ///< codec context required for the DSPContext
 } DecimateContext;
 
+#define OFFSET(x) offsetof(DecimateContext, x)
+#define FLAGS AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
+
+static const AVOption decimate_options[] = {
+    { "max",  "set the maximum number of consecutive dropped frames (positive), or the minimum interval between dropped frames (negative)",
+      OFFSET(max_drop_count), AV_OPT_TYPE_INT, {.i64=0}, INT_MIN, INT_MAX, FLAGS },
+    { "hi",   "set high dropping threshold", OFFSET(hi), AV_OPT_TYPE_INT, {.i64=64*12}, INT_MIN, INT_MAX, FLAGS },
+    { "lo",   "set low dropping threshold", OFFSET(lo), AV_OPT_TYPE_INT, {.i64=64*5}, INT_MIN, INT_MAX, FLAGS },
+    { "frac", "set fraction dropping threshold",  OFFSET(frac), AV_OPT_TYPE_FLOAT, {.dbl=0.33}, 0, 1, FLAGS },
+    { NULL }
+};
+
+AVFILTER_DEFINE_CLASS(decimate);
+
 /**
  * Return 1 if the two planes are different, 0 otherwise.
  */
@@ -63,7 +79,7 @@ static int diff_planes(AVFilterContext *ctx,
     int x, y;
     int d, c = 0;
     int t = (w/16)*(h/16)*decimate->frac;
-    DCTELEM block[8*8];
+    int16_t block[8*8];
 
     /* compute difference for blocks of 8x8 bytes */
     for (y = 0; y < h-7; y += 4) {
@@ -116,29 +132,14 @@ static int decimate_frame(AVFilterContext *ctx,
 static av_cold int init(AVFilterContext *ctx, const char *args)
 {
     DecimateContext *decimate = ctx->priv;
+    static const char *shorthand[] = { "max", "hi", "lo", "frac", NULL };
+    int ret;
 
-    /* set default values */
-    decimate->drop_count = decimate->max_drop_count = 0;
-    decimate->lo = 64*5;
-    decimate->hi = 64*12;
-    decimate->frac = 0.33;
+    decimate->class = &decimate_class;
+    av_opt_set_defaults(decimate);
 
-    if (args) {
-        char c1, c2, c3, c4;
-        int n = sscanf(args, "%d%c%d%c%d%c%f%c",
-                       &decimate->max_drop_count, &c1,
-                       &decimate->hi, &c2, &decimate->lo, &c3,
-                       &decimate->frac, &c4);
-        if (n != 1 &&
-            (n != 3 || c1 != ':') &&
-            (n != 5 || c1 != ':' || c2 != ':') &&
-            (n != 7 || c1 != ':' || c2 != ':' || c3 != ':')) {
-            av_log(ctx, AV_LOG_ERROR,
-                   "Invalid syntax for argument '%s': "
-                   "must be in the form 'max:hi:lo:frac'\n", args);
-            return AVERROR(EINVAL);
-        }
-    }
+    if ((ret = av_opt_set_from_string(decimate, args, shorthand, "=", ":")) < 0)
+        return ret;
 
     av_log(ctx, AV_LOG_VERBOSE, "max_drop_count:%d hi:%d lo:%d frac:%f\n",
            decimate->max_drop_count, decimate->hi, decimate->lo, decimate->frac);
@@ -156,6 +157,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     DecimateContext *decimate = ctx->priv;
     avfilter_unref_bufferp(&decimate->ref);
     avcodec_close(decimate->avctx);
+    av_opt_free(decimate);
     av_freep(&decimate->avctx);
 }
 
@@ -187,14 +189,9 @@ static int config_input(AVFilterLink *inlink)
     return 0;
 }
 
-static int start_frame(AVFilterLink *inlink, AVFilterBufferRef *picref) { return 0; }
-
-static int draw_slice(AVFilterLink *inlink, int y, int h, int slice_dir) { return 0; }
-
-static int end_frame(AVFilterLink *inlink)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *cur)
 {
     DecimateContext *decimate = inlink->dst->priv;
-    AVFilterBufferRef *cur = inlink->cur_buf;
     AVFilterLink *outlink = inlink->dst->outputs[0];
     int ret;
 
@@ -203,13 +200,9 @@ static int end_frame(AVFilterLink *inlink)
     } else {
         avfilter_unref_buffer(decimate->ref);
         decimate->ref = cur;
-        inlink->cur_buf = NULL;
         decimate->drop_count = FFMIN(-1, decimate->drop_count-1);
 
-        if ((ret = ff_start_frame(outlink,
-                                  avfilter_ref_buffer(cur, ~AV_PERM_WRITE)) < 0) ||
-            (ret = ff_draw_slice(outlink, 0, inlink->h, 1)) < 0 ||
-            (ret = ff_end_frame(outlink)) < 0)
+        if (ret = ff_filter_frame(outlink, avfilter_ref_buffer(cur, ~AV_PERM_WRITE)) < 0)
             return ret;
     }
 
@@ -218,6 +211,9 @@ static int end_frame(AVFilterLink *inlink)
            decimate->drop_count > 0 ? "drop" : "keep",
            av_ts2str(cur->pts), av_ts2timestr(cur->pts, &inlink->time_base),
            decimate->drop_count);
+
+    if (decimate->drop_count > 0)
+        avfilter_unref_buffer(cur);
 
     return 0;
 }
@@ -235,6 +231,27 @@ static int request_frame(AVFilterLink *outlink)
     return ret;
 }
 
+static const AVFilterPad decimate_inputs[] = {
+    {
+        .name             = "default",
+        .type             = AVMEDIA_TYPE_VIDEO,
+        .get_video_buffer = ff_null_get_video_buffer,
+        .config_props     = config_input,
+        .filter_frame     = filter_frame,
+        .min_perms        = AV_PERM_READ | AV_PERM_PRESERVE,
+    },
+    { NULL }
+};
+
+static const AVFilterPad decimate_outputs[] = {
+    {
+        .name          = "default",
+        .type          = AVMEDIA_TYPE_VIDEO,
+        .request_frame = request_frame,
+    },
+    { NULL }
+};
+
 AVFilter avfilter_vf_decimate = {
     .name        = "decimate",
     .description = NULL_IF_CONFIG_SMALL("Remove near-duplicate frames."),
@@ -243,26 +260,7 @@ AVFilter avfilter_vf_decimate = {
 
     .priv_size = sizeof(DecimateContext),
     .query_formats = query_formats,
-
-    .inputs = (const AVFilterPad[]) {
-        {
-            .name             = "default",
-            .type             = AVMEDIA_TYPE_VIDEO,
-            .get_video_buffer = ff_null_get_video_buffer,
-            .config_props     = config_input,
-            .start_frame      = start_frame,
-            .draw_slice       = draw_slice,
-            .end_frame        = end_frame,
-            .min_perms        = AV_PERM_READ | AV_PERM_PRESERVE,
-        },
-        { .name = NULL }
-    },
-    .outputs = (const AVFilterPad[]) {
-        {
-            .name          = "default",
-            .type          = AVMEDIA_TYPE_VIDEO,
-            .request_frame = request_frame,
-        },
-        { .name = NULL }
-    },
+    .inputs        = decimate_inputs,
+    .outputs       = decimate_outputs,
+    .priv_class    = &decimate_class,
 };

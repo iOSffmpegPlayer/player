@@ -31,6 +31,8 @@
 #include "avutil.h"
 #include "dict.h"
 #include "log.h"
+#include "pixfmt.h"
+#include "samplefmt.h"
 
 /**
  * @defgroup avoptions AVOptions
@@ -290,6 +292,25 @@ typedef struct AVOption {
      */
     const char *unit;
 } AVOption;
+
+/**
+ * A single allowed range of values, or a single allowed value.
+ */
+typedef struct AVOptionRange {
+    const char *str;
+    double value_min, value_max;             ///< For string ranges this represents the min/max length, for dimensions this represents the min/max pixel count
+    double component_min, component_max;     ///< For string this represents the unicode range for chars, 0-127 limits to ASCII
+    int is_range;                            ///< if set to 1 the struct encodes a range, if set to 0 a single value
+} AVOptionRange;
+
+/**
+ * List of AVOptionRange structs
+ */
+typedef struct AVOptionRanges {
+    AVOptionRange **range;
+    int nb_ranges;
+} AVOptionRanges;
+
 
 #if FF_API_FIND_OPT
 /**
@@ -629,6 +650,9 @@ int av_opt_set_int   (void *obj, const char *name, int64_t     val, int search_f
 int av_opt_set_double(void *obj, const char *name, double      val, int search_flags);
 int av_opt_set_q     (void *obj, const char *name, AVRational  val, int search_flags);
 int av_opt_set_bin   (void *obj, const char *name, const uint8_t *val, int size, int search_flags);
+int av_opt_set_image_size(void *obj, const char *name, int w, int h, int search_flags);
+int av_opt_set_pixel_fmt (void *obj, const char *name, enum AVPixelFormat fmt, int search_flags);
+int av_opt_set_sample_fmt(void *obj, const char *name, enum AVSampleFormat fmt, int search_flags);
 /**
  * @}
  */
@@ -652,6 +676,9 @@ int av_opt_get       (void *obj, const char *name, int search_flags, uint8_t   *
 int av_opt_get_int   (void *obj, const char *name, int search_flags, int64_t    *out_val);
 int av_opt_get_double(void *obj, const char *name, int search_flags, double     *out_val);
 int av_opt_get_q     (void *obj, const char *name, int search_flags, AVRational *out_val);
+int av_opt_get_image_size(void *obj, const char *name, int search_flags, int *w_out, int *h_out);
+int av_opt_get_pixel_fmt (void *obj, const char *name, int search_flags, enum AVPixelFormat *out_fmt);
+int av_opt_get_sample_fmt(void *obj, const char *name, int search_flags, enum AVSampleFormat *out_fmt);
 /**
  * @}
  */
@@ -664,6 +691,41 @@ int av_opt_get_q     (void *obj, const char *name, int search_flags, AVRational 
  *          or written to.
  */
 void *av_opt_ptr(const AVClass *avclass, void *obj, const char *name);
+
+/**
+ * Free an AVOptionRanges struct and set it to NULL.
+ */
+void av_opt_freep_ranges(AVOptionRanges **ranges);
+
+/**
+ * Get a list of allowed ranges for the given option.
+ *
+ * The returned list may depend on other fields in obj like for example profile.
+ *
+ * @param flags is a bitmask of flags, undefined flags should not be set and should be ignored
+ *              AV_OPT_SEARCH_FAKE_OBJ indicates that the obj is a double pointer to a AVClass instead of a full instance
+ *
+ * The result must be freed with av_opt_freep_ranges.
+ *
+ * @return >= 0 on success, a negative errro code otherwise
+ */
+int av_opt_query_ranges(AVOptionRanges **, void *obj, const char *key, int flags);
+
+/**
+ * Get a default list of allowed ranges for the given option.
+ *
+ * This list is constructed without using the AVClass.query_ranges() callback
+ * and can be used as fallback from within the callback.
+ *
+ * @param flags is a bitmask of flags, undefined flags should not be set and should be ignored
+ *              AV_OPT_SEARCH_FAKE_OBJ indicates that the obj is a double pointer to a AVClass instead of a full instance
+ *
+ * The result must be freed with av_opt_free_ranges.
+ *
+ * @return >= 0 on success, a negative errro code otherwise
+ */
+int av_opt_query_ranges_default(AVOptionRanges **, void *obj, const char *key, int flags);
+
 /**
  * @}
  */

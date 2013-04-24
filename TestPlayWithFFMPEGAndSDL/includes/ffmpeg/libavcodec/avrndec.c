@@ -20,8 +20,10 @@
  */
 
 #include "avcodec.h"
+#include "internal.h"
 #include "mjpeg.h"
 #include "mjpegdec.h"
+#include "libavutil/imgutils.h"
 
 typedef struct {
     MJpegDecodeContext mjpeg_ctx;
@@ -34,6 +36,7 @@ typedef struct {
 static av_cold int init(AVCodecContext *avctx)
 {
     AVRnContext *a = avctx->priv_data;
+    int ret;
 
     // Support "Resolution 1:1" for Avid AVI Codec
     a->is_mjpeg = avctx->extradata_size < 31 || memcmp(&avctx->extradata[28], "1:1", 3);
@@ -46,8 +49,8 @@ static av_cold int init(AVCodecContext *avctx)
     if(a->is_mjpeg)
         return ff_mjpeg_decode_init(avctx);
 
-    if(avctx->width <= 0 || avctx->height <= 0)
-        return AVERROR_INVALIDDATA;
+    if ((ret = av_image_check_size(avctx->width, avctx->height, 0, avctx)) < 0)
+        return ret;
 
     avcodec_get_frame_defaults(&a->frame);
     avctx->pix_fmt = AV_PIX_FMT_UYVY422;
@@ -77,7 +80,8 @@ static av_cold int end(AVCodecContext *avctx)
     return 0;
 }
 
-static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPacket *avpkt)
+static int decode_frame(AVCodecContext *avctx, void *data,
+                        int *got_frame, AVPacket *avpkt)
 {
     AVRnContext *a = avctx->priv_data;
     AVFrame *p = &a->frame;
@@ -86,7 +90,7 @@ static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPac
     int y, ret, true_height;
 
     if(a->is_mjpeg)
-        return ff_mjpeg_decode_frame(avctx, data, data_size, avpkt);
+        return ff_mjpeg_decode_frame(avctx, data, got_frame, avpkt);
 
     true_height    = buf_size / (2*avctx->width);
     if(p->data[0])
@@ -97,7 +101,7 @@ static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPac
         return AVERROR_INVALIDDATA;
     }
 
-    if((ret = avctx->get_buffer(avctx, p)) < 0){
+    if((ret = ff_get_buffer(avctx, p)) < 0){
         av_log(avctx, AV_LOG_ERROR, "get_buffer() failed\n");
         return ret;
     }
@@ -120,7 +124,7 @@ static int decode_frame(AVCodecContext *avctx, void *data, int *data_size, AVPac
     }
 
     *(AVFrame*)data = a->frame;
-    *data_size      = sizeof(AVFrame);
+    *got_frame      = 1;
     return buf_size;
 }
 

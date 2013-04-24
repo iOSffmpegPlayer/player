@@ -28,6 +28,7 @@
 #include "libavutil/tree.h"
 #include "avio_internal.h"
 #include "nut.h"
+#include "riff.h"
 
 #define NUT_MAX_STREAMS 256    /* arbitrary sanity check value */
 
@@ -72,8 +73,10 @@ static uint64_t get_fourcc(AVIOContext *bc)
         return avio_rl16(bc);
     else if (len == 4)
         return avio_rl32(bc);
-    else
+    else {
+        av_log(NULL, AV_LOG_ERROR, "Unsupported fourcc length %d\n", len);
         return -1;
+    }
 }
 
 #ifdef TRACE
@@ -521,6 +524,8 @@ static int decode_info_header(NUTContext *nut)
 
             if (stream_id_plus1 && !strcmp(name, "r_frame_rate")) {
                 sscanf(str_value, "%d/%d", &st->r_frame_rate.num, &st->r_frame_rate.den);
+                if (st->r_frame_rate.num >= 1000LL*st->r_frame_rate.den)
+                    st->r_frame_rate.num = st->r_frame_rate.den = 0;
                 continue;
             }
 
@@ -552,14 +557,14 @@ static int decode_syncpoint(NUTContext *nut, int64_t *ts, int64_t *back_ptr)
     tmp       = ffio_read_varlen(bc);
     *back_ptr = nut->last_syncpoint_pos - 16 * ffio_read_varlen(bc);
     if (*back_ptr < 0)
-        return -1;
+        return AVERROR_INVALIDDATA;
 
     ff_nut_reset_ts(nut, nut->time_base[tmp % nut->time_base_count],
                     tmp / nut->time_base_count);
 
     if (skip_reserved(bc, end) || ffio_get_checksum(bc)) {
         av_log(s, AV_LOG_ERROR, "sync point checksum mismatch\n");
-        return -1;
+        return AVERROR_INVALIDDATA;
     }
 
     *ts = tmp / nut->time_base_count *

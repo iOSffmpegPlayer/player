@@ -56,11 +56,10 @@ static int query_formats(AVFilterContext *ctx)
     return 0;
 }
 
-static int end_frame(AVFilterLink *inlink)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *picref)
 {
     AVFilterContext *ctx = inlink->dst;
     BBoxContext *bbox = ctx->priv;
-    AVFilterBufferRef *picref = inlink->cur_buf;
     FFBoundingBox box;
     int has_bbox, w, h;
 
@@ -86,8 +85,27 @@ static int end_frame(AVFilterLink *inlink)
     av_log(ctx, AV_LOG_INFO, "\n");
 
     bbox->frame++;
-    return ff_end_frame(inlink->dst->outputs[0]);
+    return ff_filter_frame(inlink->dst->outputs[0], picref);
 }
+
+static const AVFilterPad bbox_inputs[] = {
+    {
+        .name             = "default",
+        .type             = AVMEDIA_TYPE_VIDEO,
+        .get_video_buffer = ff_null_get_video_buffer,
+        .filter_frame     = filter_frame,
+        .min_perms        = AV_PERM_READ,
+    },
+    { NULL }
+};
+
+static const AVFilterPad bbox_outputs[] = {
+    {
+        .name = "default",
+        .type = AVMEDIA_TYPE_VIDEO,
+    },
+    { NULL }
+};
 
 AVFilter avfilter_vf_bbox = {
     .name          = "bbox",
@@ -95,20 +113,6 @@ AVFilter avfilter_vf_bbox = {
     .priv_size     = sizeof(BBoxContext),
     .query_formats = query_formats,
     .init          = init,
-
-    .inputs = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_VIDEO,
-          .get_video_buffer = ff_null_get_video_buffer,
-          .start_frame      = ff_null_start_frame,
-          .end_frame        = end_frame,
-          .min_perms        = AV_PERM_READ, },
-        { .name = NULL }
-    },
-
-    .outputs = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_VIDEO },
-        { .name = NULL }
-    },
+    .inputs        = bbox_inputs,
+    .outputs       = bbox_outputs,
 };

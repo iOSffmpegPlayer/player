@@ -759,7 +759,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //        vp->picref = src_frame->opaque;
 //#endif
     //SDL_LockMutex(is->pictq_mutex);
-    //NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     @synchronized (kxVideoFrame) {
 
         if (!kxVideoFrame) {
@@ -768,7 +768,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         }
 
     }
-    //[pool release];
+    [pool release];
     //SDL_UnlockMutex(is->pictq_mutex);
         vp->pts = pts;
         vp->pos = pos;
@@ -2295,8 +2295,8 @@ const char program_name[] = "ffplay";
     VideoState *is;
     char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
     
-    input_filename = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
-//    input_filename = "udp://@192.168.1.102:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+//    input_filename = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
+    input_filename = "udp://@192.168.1.102:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 
 
     display_disable = NO;

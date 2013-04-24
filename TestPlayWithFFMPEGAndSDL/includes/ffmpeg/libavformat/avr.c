@@ -22,7 +22,7 @@
 #include "libavutil/intreadwrite.h"
 #include "avformat.h"
 #include "internal.h"
-#include "rawdec.h"
+#include "pcm.h"
 
 static int avr_probe(AVProbeData *p)
 {
@@ -61,8 +61,9 @@ static int avr_read_header(AVFormatContext *s)
 
     avio_skip(s->pb, 2); // loop
     avio_skip(s->pb, 2); // midi
+    avio_skip(s->pb, 1); // replay speed
 
-    st->codec->sample_rate = avio_rb32(s->pb);
+    st->codec->sample_rate = avio_rb24(s->pb);
     avio_skip(s->pb, 4 * 3);
     avio_skip(s->pb, 2 * 3);
     avio_skip(s->pb, 20);
@@ -81,15 +82,19 @@ static int avr_read_header(AVFormatContext *s)
         return AVERROR_PATCHWELCOME;
     }
 
+    st->codec->block_align = bps * st->codec->channels / 8;
+
     avpriv_set_pts_info(st, 64, 1, st->codec->sample_rate);
     return 0;
 }
 
 AVInputFormat ff_avr_demuxer = {
     .name           = "avr",
-    .long_name      = NULL_IF_CONFIG_SMALL("AVR (Audio Visual Resarch)"),
+    .long_name      = NULL_IF_CONFIG_SMALL("AVR (Audio Visual Research)"),
     .read_probe     = avr_probe,
     .read_header    = avr_read_header,
-    .read_packet    = ff_raw_read_partial_packet,
+    .read_packet    = ff_pcm_read_packet,
+    .read_seek      = ff_pcm_read_seek,
     .extensions     = "avr",
+    .flags          = AVFMT_GENERIC_INDEX,
 };

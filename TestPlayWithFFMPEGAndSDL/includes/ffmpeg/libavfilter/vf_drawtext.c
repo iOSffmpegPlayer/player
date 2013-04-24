@@ -47,8 +47,6 @@
 #include "internal.h"
 #include "video.h"
 
-#undef time
-
 #include <ft2build.h>
 #include <freetype/config/ftheader.h>
 #include FT_FREETYPE_H
@@ -167,6 +165,7 @@ typedef struct {
     AVTimecode  tc;                 ///< timecode context
     int tc24hmax;                   ///< 1 if timecode is wrapped to 24 hours, 0 otherwise
     int frame_id;
+    int reload;                     ///< reload text file for each frame
 } DrawTextContext;
 
 #define OFFSET(x) offsetof(DrawTextContext, x)
@@ -189,7 +188,7 @@ static const AVOption drawtext_options[]= {
 {"basetime", "set base time",        OFFSET(basetime),           AV_OPT_TYPE_INT64,  {.i64=AV_NOPTS_VALUE}, INT64_MIN, INT64_MAX , FLAGS},
 {"draw",     "if false do not draw", OFFSET(draw_expr),          AV_OPT_TYPE_STRING, {.str="1"},   CHAR_MIN, CHAR_MAX, FLAGS},
 
-{"expansion","set the expansion mode", OFFSET(exp_mode),         AV_OPT_TYPE_INT,    {.i64=EXP_STRFTIME}, 0,        2, FLAGS, "expansion"},
+{"expansion","set the expansion mode", OFFSET(exp_mode),         AV_OPT_TYPE_INT,    {.i64=EXP_NORMAL},   0,        2, FLAGS, "expansion"},
 {"none",     "set no expansion",     OFFSET(exp_mode),           AV_OPT_TYPE_CONST,  {.i64=EXP_NONE},     0,        0, FLAGS, "expansion"},
 {"normal",   "set normal expansion", OFFSET(exp_mode),           AV_OPT_TYPE_CONST,  {.i64=EXP_NORMAL},   0,        0, FLAGS, "expansion"},
 {"strftime", "set strftime expansion (deprecated)", OFFSET(exp_mode), AV_OPT_TYPE_CONST, {.i64=EXP_STRFTIME}, 0,    0, FLAGS, "expansion"},
@@ -199,6 +198,7 @@ static const AVOption drawtext_options[]= {
 {"timecode_rate", "set rate (timecode only)", OFFSET(tc_rate),   AV_OPT_TYPE_RATIONAL, {.dbl=0},          0,  INT_MAX, FLAGS},
 {"r",        "set rate (timecode only)", OFFSET(tc_rate),        AV_OPT_TYPE_RATIONAL, {.dbl=0},          0,  INT_MAX, FLAGS},
 {"rate",     "set rate (timecode only)", OFFSET(tc_rate),        AV_OPT_TYPE_RATIONAL, {.dbl=0},          0,  INT_MAX, FLAGS},
+{"reload",   "reload text file for each frame", OFFSET(reload),  AV_OPT_TYPE_INT,    {.i64=0},            0,        1, FLAGS},
 {"fix_bounds", "if true, check and fix text coords to avoid clipping", OFFSET(fix_bounds), AV_OPT_TYPE_INT, {.i64=1}, 0, 1, FLAGS},
 
 /* FT_LOAD_* flags */
@@ -393,6 +393,29 @@ static int load_font(AVFilterContext *ctx)
     return err;
 }
 
+static int load_textfile(AVFilterContext *ctx)
+{
+    DrawTextContext *dtext = ctx->priv;
+    int err;
+    uint8_t *textbuf;
+    size_t textbuf_size;
+
+    if ((err = av_file_map(dtext->textfile, &textbuf, &textbuf_size, 0, ctx)) < 0) {
+        av_log(ctx, AV_LOG_ERROR,
+               "The text file '%s' could not be read or is empty\n",
+               dtext->textfile);
+        return err;
+    }
+
+    if (!(dtext->text = av_realloc(dtext->text, textbuf_size + 1)))
+        return AVERROR(ENOMEM);
+    memcpy(dtext->text, textbuf, textbuf_size);
+    dtext->text[textbuf_size] = 0;
+    av_file_unmap(textbuf, textbuf_size);
+
+    return 0;
+}
+
 static av_cold int init(AVFilterContext *ctx, const char *args)
 {
     int err;
@@ -411,27 +434,17 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
     }
 
     if (dtext->textfile) {
-        uint8_t *textbuf;
-        size_t textbuf_size;
-
         if (dtext->text) {
             av_log(ctx, AV_LOG_ERROR,
                    "Both text and text file provided. Please provide only one\n");
             return AVERROR(EINVAL);
         }
-        if ((err = av_file_map(dtext->textfile, &textbuf, &textbuf_size, 0, ctx)) < 0) {
-            av_log(ctx, AV_LOG_ERROR,
-                   "The text file '%s' could not be read or is empty\n",
-                   dtext->textfile);
+        if ((err = load_textfile(ctx)) < 0)
             return err;
-        }
-
-        if (!(dtext->text = av_malloc(textbuf_size+1)))
-            return AVERROR(ENOMEM);
-        memcpy(dtext->text, textbuf, textbuf_size);
-        dtext->text[textbuf_size] = 0;
-        av_file_unmap(textbuf, textbuf_size);
     }
+
+    if (dtext->reload && !dtext->textfile)
+        av_log(ctx, AV_LOG_WARNING, "No file to reload\n");
 
     if (dtext->tc_opt_string) {
         int ret = av_timecode_init_from_string(&dtext->tc, dtext->tc_rate,
@@ -643,12 +656,34 @@ static int func_strftime(AVFilterContext *ctx, AVBPrint *bp,
     return 0;
 }
 
+static int func_eval_expr(AVFilterContext *ctx, AVBPrint *bp,
+                          char *fct, unsigned argc, char **argv, int tag)
+{
+    DrawTextContext *dtext = ctx->priv;
+    double res;
+    int ret;
+
+    ret = av_expr_parse_and_eval(&res, argv[0], var_names, dtext->var_values,
+                                 NULL, NULL, fun2_names, fun2,
+                                 &dtext->prng, 0, ctx);
+    if (ret < 0)
+        av_log(ctx, AV_LOG_ERROR,
+               "Expression '%s' for the expr text expansion function is not valid\n",
+               argv[0]);
+    else
+        av_bprintf(bp, "%f", res);
+
+    return ret;
+}
+
 static const struct drawtext_function {
     const char *name;
     unsigned argc_min, argc_max;
     int tag; /** opaque argument to func */
     int (*func)(AVFilterContext *, AVBPrint *, char *, unsigned, char **, int);
 } functions[] = {
+    { "expr",      1, 1, 0,   func_eval_expr },
+    { "e",         1, 1, 0,   func_eval_expr },
     { "pts",       0, 0, 0,   func_pts      },
     { "gmtime",    0, 1, 'G', func_strftime },
     { "localtime", 0, 1, 'L', func_strftime },
@@ -943,23 +978,21 @@ static int draw_text(AVFilterContext *ctx, AVFilterBufferRef *picref,
     return 0;
 }
 
-static int null_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
-{
-    return 0;
-}
-
-static int end_frame(AVFilterLink *inlink)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     AVFilterLink *outlink = ctx->outputs[0];
     DrawTextContext *dtext = ctx->priv;
-    AVFilterBufferRef *picref = inlink->cur_buf;
     int ret;
 
-    dtext->var_values[VAR_T] = picref->pts == AV_NOPTS_VALUE ?
-        NAN : picref->pts * av_q2d(inlink->time_base);
+    if (dtext->reload)
+        if ((ret = load_textfile(ctx)) < 0)
+            return ret;
 
-    draw_text(ctx, picref, picref->video->w, picref->video->h);
+    dtext->var_values[VAR_T] = frame->pts == AV_NOPTS_VALUE ?
+        NAN : frame->pts * av_q2d(inlink->time_base);
+
+    draw_text(ctx, frame, frame->video->w, frame->video->h);
 
     av_log(ctx, AV_LOG_DEBUG, "n:%d t:%f text_w:%d text_h:%d x:%d y:%d\n",
            (int)dtext->var_values[VAR_N], dtext->var_values[VAR_T],
@@ -968,10 +1001,7 @@ static int end_frame(AVFilterLink *inlink)
 
     dtext->var_values[VAR_N] += 1.0;
 
-    if ((ret = ff_draw_slice(outlink, 0, picref->video->h, 1)) < 0 ||
-        (ret = ff_end_frame(outlink)) < 0)
-        return ret;
-    return 0;
+    return ff_filter_frame(outlink, frame);
 }
 
 static const AVFilterPad avfilter_vf_drawtext_inputs[] = {
@@ -979,9 +1009,7 @@ static const AVFilterPad avfilter_vf_drawtext_inputs[] = {
         .name             = "default",
         .type             = AVMEDIA_TYPE_VIDEO,
         .get_video_buffer = ff_null_get_video_buffer,
-        .start_frame      = ff_null_start_frame,
-        .draw_slice       = null_draw_slice,
-        .end_frame        = end_frame,
+        .filter_frame     = filter_frame,
         .config_props     = config_input,
         .min_perms        = AV_PERM_WRITE |
                             AV_PERM_READ,

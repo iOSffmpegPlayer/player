@@ -34,7 +34,6 @@
 #include "libavutil/opt.h"
 #include "avcodec.h"
 #include "put_bits.h"
-#include "dsputil.h"
 #include "internal.h"
 #include "mpeg4audio.h"
 #include "kbdwin.h"
@@ -183,7 +182,7 @@ static void put_audio_specific_config(AVCodecContext *avctx)
 }
 
 #define WINDOW_FUNC(type) \
-static void apply_ ##type ##_window(DSPContext *dsp, AVFloatDSPContext *fdsp, \
+static void apply_ ##type ##_window(AVFloatDSPContext *fdsp, \
                                     SingleChannelElement *sce, \
                                     const float *audio)
 
@@ -191,21 +190,21 @@ WINDOW_FUNC(only_long)
 {
     const float *lwindow = sce->ics.use_kb_window[0] ? ff_aac_kbd_long_1024 : ff_sine_1024;
     const float *pwindow = sce->ics.use_kb_window[1] ? ff_aac_kbd_long_1024 : ff_sine_1024;
-    float *out = sce->ret;
+    float *out = sce->ret_buf;
 
-    fdsp->vector_fmul       (out,        audio,        lwindow, 1024);
-    dsp->vector_fmul_reverse(out + 1024, audio + 1024, pwindow, 1024);
+    fdsp->vector_fmul        (out,        audio,        lwindow, 1024);
+    fdsp->vector_fmul_reverse(out + 1024, audio + 1024, pwindow, 1024);
 }
 
 WINDOW_FUNC(long_start)
 {
     const float *lwindow = sce->ics.use_kb_window[1] ? ff_aac_kbd_long_1024 : ff_sine_1024;
     const float *swindow = sce->ics.use_kb_window[0] ? ff_aac_kbd_short_128 : ff_sine_128;
-    float *out = sce->ret;
+    float *out = sce->ret_buf;
 
     fdsp->vector_fmul(out, audio, lwindow, 1024);
     memcpy(out + 1024, audio + 1024, sizeof(out[0]) * 448);
-    dsp->vector_fmul_reverse(out + 1024 + 448, audio + 1024 + 448, swindow, 128);
+    fdsp->vector_fmul_reverse(out + 1024 + 448, audio + 1024 + 448, swindow, 128);
     memset(out + 1024 + 576, 0, sizeof(out[0]) * 448);
 }
 
@@ -213,12 +212,12 @@ WINDOW_FUNC(long_stop)
 {
     const float *lwindow = sce->ics.use_kb_window[0] ? ff_aac_kbd_long_1024 : ff_sine_1024;
     const float *swindow = sce->ics.use_kb_window[1] ? ff_aac_kbd_short_128 : ff_sine_128;
-    float *out = sce->ret;
+    float *out = sce->ret_buf;
 
     memset(out, 0, sizeof(out[0]) * 448);
     fdsp->vector_fmul(out + 448, audio + 448, swindow, 128);
     memcpy(out + 576, audio + 576, sizeof(out[0]) * 448);
-    dsp->vector_fmul_reverse(out + 1024, audio + 1024, lwindow, 1024);
+    fdsp->vector_fmul_reverse(out + 1024, audio + 1024, lwindow, 1024);
 }
 
 WINDOW_FUNC(eight_short)
@@ -226,19 +225,19 @@ WINDOW_FUNC(eight_short)
     const float *swindow = sce->ics.use_kb_window[0] ? ff_aac_kbd_short_128 : ff_sine_128;
     const float *pwindow = sce->ics.use_kb_window[1] ? ff_aac_kbd_short_128 : ff_sine_128;
     const float *in = audio + 448;
-    float *out = sce->ret;
+    float *out = sce->ret_buf;
     int w;
 
     for (w = 0; w < 8; w++) {
-        fdsp->vector_fmul       (out, in, w ? pwindow : swindow, 128);
+        fdsp->vector_fmul        (out, in, w ? pwindow : swindow, 128);
         out += 128;
         in  += 128;
-        dsp->vector_fmul_reverse(out, in, swindow, 128);
+        fdsp->vector_fmul_reverse(out, in, swindow, 128);
         out += 128;
     }
 }
 
-static void (*const apply_window[4])(DSPContext *dsp, AVFloatDSPContext *fdsp,
+static void (*const apply_window[4])(AVFloatDSPContext *fdsp,
                                      SingleChannelElement *sce,
                                      const float *audio) = {
     [ONLY_LONG_SEQUENCE]   = apply_only_long_window,
@@ -251,9 +250,9 @@ static void apply_window_and_mdct(AACEncContext *s, SingleChannelElement *sce,
                                   float *audio)
 {
     int i;
-    float *output = sce->ret;
+    float *output = sce->ret_buf;
 
-    apply_window[sce->ics.window_sequence[0]](&s->dsp, &s->fdsp, sce, audio);
+    apply_window[sce->ics.window_sequence[0]](&s->fdsp, sce, audio);
 
     if (sce->ics.window_sequence[0] != EIGHT_SHORT_SEQUENCE)
         s->mdct1024.mdct_calc(&s->mdct1024, sce->coeffs, output);
@@ -517,7 +516,7 @@ static int aac_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     /* add current frame to queue */
     if (frame) {
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     }
 
@@ -571,10 +570,8 @@ static int aac_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
         }
         start_ch += chans;
     }
-    if ((ret = ff_alloc_packet2(avctx, avpkt, 8192 * s->channels))) {
-        av_log(avctx, AV_LOG_ERROR, "Error getting output packet\n");
+    if ((ret = ff_alloc_packet2(avctx, avpkt, 8192 * s->channels)) < 0)
         return ret;
-    }
     do {
         int frame_bits;
 
@@ -692,7 +689,6 @@ static av_cold int dsp_init(AVCodecContext *avctx, AACEncContext *s)
 {
     int ret = 0;
 
-    ff_dsputil_init(&s->dsp, avctx);
     avpriv_float_dsp_init(&s->fdsp, avctx->flags & CODEC_FLAG_BITEXACT);
 
     // window init

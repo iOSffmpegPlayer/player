@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6229DFFC1726698B000A7E19 /* 2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 6229DFFB1726698B000A7E19 /* 2.mp4 */; };
 		62301AE9171E79540017AE20 /* 1.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 62301AE8171E79540017AE20 /* 1.mp4 */; };
 		62301AEB171E7FF30017AE20 /* libavcodec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 62301AEA171E7FF30017AE20 /* libavcodec.a */; };
 		62301AED171E7FFE0017AE20 /* libavdevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 62301AEC171E7FFE0017AE20 /* libavdevice.a */; };
@@ -36,6 +37,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6229DFFB1726698B000A7E19 /* 2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = 2.mp4; path = ../../../../Resource/presolveVideos/2.mp4; sourceTree = "<group>"; };
 		62301AE8171E79540017AE20 /* 1.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = 1.mp4; path = ../../../../Resource/vedios/1.mp4; sourceTree = "<group>"; };
 		62301AEA171E7FF30017AE20 /* libavcodec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavcodec.a; path = TestPlayWithFFMPEGAndSDL/includes/ffmpeg/libavcodec/libavcodec.a; sourceTree = SOURCE_ROOT; };
 		62301AEC171E7FFE0017AE20 /* libavdevice.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavdevice.a; path = TestPlayWithFFMPEGAndSDL/includes/ffmpeg/libavdevice/libavdevice.a; sourceTree = SOURCE_ROOT; };
@@ -164,6 +166,7 @@
 		62C3EF6816795CCD00F416E6 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				6229DFFB1726698B000A7E19 /* 2.mp4 */,
 				62301AE8171E79540017AE20 /* 1.mp4 */,
 				62C3EF6916795CCD00F416E6 /* TestPlayWithFFMPEGAndSDL-Info.plist */,
 				62C3EF6A16795CCD00F416E6 /* InfoPlist.strings */,
@@ -241,6 +244,7 @@
 				62C3EF6C16795CCD00F416E6 /* InfoPlist.strings in Resources */,
 				62CC2A9C1682AF4D00AC043A /* FSFFPLAYViewController.xib in Resources */,
 				62301AE9171E79540017AE20 /* 1.mp4 in Resources */,
+				6229DFFC1726698B000A7E19 /* 2.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

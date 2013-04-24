@@ -59,7 +59,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args, const AVClass *c
     aspect->class = class;
     av_opt_set_defaults(aspect);
 
-    if (sscanf(args, "%d:%d%c", &q.num, &q.den, &c) == 2) {
+    if (args && sscanf(args, "%d:%d%c", &q.num, &q.den, &c) == 2) {
         aspect->ratio_str = av_strdup(args);
         av_log(ctx, AV_LOG_WARNING,
                "num:den syntax is deprecated, please use num/den or named options instead\n");
@@ -80,13 +80,12 @@ static av_cold int init(AVFilterContext *ctx, const char *args, const AVClass *c
     return 0;
 }
 
-static int start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
+static int filter_frame(AVFilterLink *link, AVFilterBufferRef *frame)
 {
     AspectContext *aspect = link->dst->priv;
 
-    picref->video->sample_aspect_ratio = aspect->ratio;
-    link->cur_buf = NULL;
-    return ff_start_frame(link->dst->outputs[0], picref);
+    frame->video->sample_aspect_ratio = aspect->ratio;
+    return ff_filter_frame(link->dst->outputs[0], frame);
 }
 
 static av_cold void uninit(AVFilterContext *ctx)
@@ -129,8 +128,7 @@ static const AVFilterPad avfilter_vf_setdar_inputs[] = {
         .type             = AVMEDIA_TYPE_VIDEO,
         .config_props     = setdar_config_props,
         .get_video_buffer = ff_null_get_video_buffer,
-        .start_frame      = start_frame,
-        .end_frame        = ff_null_end_frame
+        .filter_frame     = filter_frame,
     },
     { NULL }
 };
@@ -185,8 +183,7 @@ static const AVFilterPad avfilter_vf_setsar_inputs[] = {
         .type             = AVMEDIA_TYPE_VIDEO,
         .config_props     = setsar_config_props,
         .get_video_buffer = ff_null_get_video_buffer,
-        .start_frame      = start_frame,
-        .end_frame        = ff_null_end_frame
+        .filter_frame     = filter_frame,
     },
     { NULL }
 };

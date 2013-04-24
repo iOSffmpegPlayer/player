@@ -230,21 +230,21 @@ HVBILIN(ssse3, 8,  4,  8)
 HVBILIN(ssse3, 8,  8, 16)
 HVBILIN(ssse3, 8, 16, 16)
 
-extern void ff_vp8_idct_dc_add_mmx(uint8_t *dst, DCTELEM block[16],
+extern void ff_vp8_idct_dc_add_mmx(uint8_t *dst, int16_t block[16],
                                    ptrdiff_t stride);
-extern void ff_vp8_idct_dc_add_sse4(uint8_t *dst, DCTELEM block[16],
+extern void ff_vp8_idct_dc_add_sse4(uint8_t *dst, int16_t block[16],
                                     ptrdiff_t stride);
-extern void ff_vp8_idct_dc_add4y_mmx(uint8_t *dst, DCTELEM block[4][16],
+extern void ff_vp8_idct_dc_add4y_mmx(uint8_t *dst, int16_t block[4][16],
                                       ptrdiff_t stride);
-extern void ff_vp8_idct_dc_add4y_sse2(uint8_t *dst, DCTELEM block[4][16],
+extern void ff_vp8_idct_dc_add4y_sse2(uint8_t *dst, int16_t block[4][16],
                                       ptrdiff_t stride);
-extern void ff_vp8_idct_dc_add4uv_mmx(uint8_t *dst, DCTELEM block[2][16],
+extern void ff_vp8_idct_dc_add4uv_mmx(uint8_t *dst, int16_t block[2][16],
                                       ptrdiff_t stride);
-extern void ff_vp8_luma_dc_wht_mmx(DCTELEM block[4][4][16], DCTELEM dc[16]);
-extern void ff_vp8_luma_dc_wht_sse(DCTELEM block[4][4][16], DCTELEM dc[16]);
-extern void ff_vp8_idct_add_mmx(uint8_t *dst, DCTELEM block[16],
+extern void ff_vp8_luma_dc_wht_mmx(int16_t block[4][4][16], int16_t dc[16]);
+extern void ff_vp8_luma_dc_wht_sse(int16_t block[4][4][16], int16_t dc[16]);
+extern void ff_vp8_idct_add_mmx(uint8_t *dst, int16_t block[16],
                                 ptrdiff_t stride);
-extern void ff_vp8_idct_add_sse(uint8_t *dst, DCTELEM block[16],
+extern void ff_vp8_idct_add_sse(uint8_t *dst, int16_t block[16],
                                 ptrdiff_t stride);
 
 #define DECLARE_LOOP_FILTER(NAME)\
@@ -390,13 +390,11 @@ av_cold void ff_vp8dsp_init_x86(VP8DSPContext* c)
 
         c->vp8_v_loop_filter_simple = ff_vp8_v_loop_filter_simple_sse2;
 
-#if ARCH_X86_64 || HAVE_ALIGNED_STACK
         c->vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_sse2;
         c->vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_sse2;
 
         c->vp8_v_loop_filter16y       = ff_vp8_v_loop_filter16y_mbedge_sse2;
         c->vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_sse2;
-#endif
     }
 
     if (mm_flags & AV_CPU_FLAG_SSE2) {
@@ -404,13 +402,11 @@ av_cold void ff_vp8dsp_init_x86(VP8DSPContext* c)
 
         c->vp8_h_loop_filter_simple = ff_vp8_h_loop_filter_simple_sse2;
 
-#if ARCH_X86_64 || HAVE_ALIGNED_STACK
         c->vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_sse2;
         c->vp8_h_loop_filter8uv_inner = ff_vp8_h_loop_filter8uv_inner_sse2;
 
         c->vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_sse2;
         c->vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_sse2;
-#endif
     }
 
     if (mm_flags & AV_CPU_FLAG_SSSE3) {
@@ -424,7 +420,6 @@ av_cold void ff_vp8dsp_init_x86(VP8DSPContext* c)
         c->vp8_v_loop_filter_simple = ff_vp8_v_loop_filter_simple_ssse3;
         c->vp8_h_loop_filter_simple = ff_vp8_h_loop_filter_simple_ssse3;
 
-#if ARCH_X86_64 || HAVE_ALIGNED_STACK
         c->vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_ssse3;
         c->vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_ssse3;
         c->vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_ssse3;
@@ -434,17 +429,14 @@ av_cold void ff_vp8dsp_init_x86(VP8DSPContext* c)
         c->vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_ssse3;
         c->vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_ssse3;
         c->vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_ssse3;
-#endif
     }
 
     if (mm_flags & AV_CPU_FLAG_SSE4) {
         c->vp8_idct_dc_add                  = ff_vp8_idct_dc_add_sse4;
 
         c->vp8_h_loop_filter_simple   = ff_vp8_h_loop_filter_simple_sse4;
-#if ARCH_X86_64 || HAVE_ALIGNED_STACK
         c->vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_sse4;
         c->vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_sse4;
-#endif
     }
 #endif /* HAVE_YASM */
 }

@@ -158,9 +158,7 @@ static av_cold int Faac_encode_init(AVCodecContext *avctx)
             memcpy(avctx->extradata, buffer, avctx->extradata_size);
             faac_cfg->outputFormat = 0;
         }
-#undef free
         free(buffer);
-#define free please_use_av_free
     }
 
     if (!faacEncSetConfiguration(s->faac_handle, faac_cfg)) {
@@ -186,10 +184,8 @@ static int Faac_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     int num_samples  = frame ? frame->nb_samples : 0;
     void *samples    = frame ? frame->data[0]    : NULL;
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, (7 + 768) * avctx->channels))) {
-        av_log(avctx, AV_LOG_ERROR, "Error getting output packet\n");
+    if ((ret = ff_alloc_packet2(avctx, avpkt, (7 + 768) * avctx->channels)) < 0)
         return ret;
-    }
 
     bytes_written = faacEncEncode(s->faac_handle, samples,
                                   num_samples * avctx->channels,
@@ -201,7 +197,7 @@ static int Faac_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
 
     /* add current frame to the queue */
     if (frame) {
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     }
 

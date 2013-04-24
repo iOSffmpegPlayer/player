@@ -36,6 +36,7 @@
 #include "mpeg4video.h"
 #include "msmpeg4data.h"
 #include "vc1data.h"
+#include "libavutil/imgutils.h"
 
 /*
  * You can also call this codec : MPEG4 with a twist !
@@ -403,7 +404,7 @@ static int msmpeg4v2_decode_motion(MpegEncContext * s, int pred, int f_code)
     return val;
 }
 
-static int msmpeg4v12_decode_mb(MpegEncContext *s, DCTELEM block[6][64])
+static int msmpeg4v12_decode_mb(MpegEncContext *s, int16_t block[6][64])
 {
     int cbp, code, i;
     uint32_t * const mb_type_ptr = &s->current_picture.f.mb_type[s->mb_x + s->mb_y*s->mb_stride];
@@ -493,7 +494,7 @@ static int msmpeg4v12_decode_mb(MpegEncContext *s, DCTELEM block[6][64])
     return 0;
 }
 
-static int msmpeg4v34_decode_mb(MpegEncContext *s, DCTELEM block[6][64])
+static int msmpeg4v34_decode_mb(MpegEncContext *s, int16_t block[6][64])
 {
     int cbp, code, i;
     uint8_t *coded_val;
@@ -590,13 +591,11 @@ av_cold int ff_msmpeg4_decode_init(AVCodecContext *avctx)
 {
     MpegEncContext *s = avctx->priv_data;
     static volatile int done = 0;
-    int i;
+    int i, ret;
     MVTable *mv;
 
-    if(avctx->width<=0 || avctx->height<=0) {
-        av_log(avctx, AV_LOG_ERROR, "invalid dimensions\n");
-        return -1;
-    }
+    if ((ret = av_image_check_size(avctx->width, avctx->height, 0, avctx)) < 0)
+        return ret;
 
     if (ff_h263_decode_init(avctx) < 0)
         return -1;
@@ -939,7 +938,7 @@ static int msmpeg4_decode_dc(MpegEncContext * s, int n, int *dir_ptr)
 }
 
 //#define ERROR_DETAILS
-int ff_msmpeg4_decode_block(MpegEncContext * s, DCTELEM * block,
+int ff_msmpeg4_decode_block(MpegEncContext * s, int16_t * block,
                               int n, int coded, const uint8_t *scan_table)
 {
     int level, i, last, run, run_diff;
@@ -1146,6 +1145,7 @@ int ff_msmpeg4_decode_block(MpegEncContext * s, DCTELEM * block,
                 const int left= get_bits_left(&s->gb);
                 if(((i+192 == 64 && level/qmul==-1) || !(s->err_recognition&(AV_EF_BITSTREAM|AV_EF_COMPLIANT))) && left>=0){
                     av_log(s->avctx, AV_LOG_ERROR, "ignoring overflow at %d %d\n", s->mb_x, s->mb_y);
+                    i = 63;
                     break;
                 }else{
                     av_log(s->avctx, AV_LOG_ERROR, "ac-tex damaged at %d %d\n", s->mb_x, s->mb_y);

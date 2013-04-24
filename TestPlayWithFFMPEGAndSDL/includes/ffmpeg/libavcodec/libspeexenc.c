@@ -288,7 +288,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
             speex_encode_stereo_int(samples, s->header.frame_size, &s->bits);
         speex_encode_int(s->enc_state, samples, &s->bits);
         s->pkt_frame_count++;
-        if ((ret = ff_af_queue_add(&s->afq, frame) < 0))
+        if ((ret = ff_af_queue_add(&s->afq, frame)) < 0)
             return ret;
     } else {
         /* handle end-of-stream */
@@ -304,7 +304,7 @@ static int encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     /* write output if all frames for the packet have been encoded */
     if (s->pkt_frame_count == s->frames_per_packet) {
         s->pkt_frame_count = 0;
-        if ((ret = ff_alloc_packet2(avctx, avpkt, speex_bits_nbytes(&s->bits))))
+        if ((ret = ff_alloc_packet2(avctx, avpkt, speex_bits_nbytes(&s->bits))) < 0)
             return ret;
         ret = speex_bits_write(&s->bits, avpkt->data, avpkt->size);
         speex_bits_reset(&s->bits);

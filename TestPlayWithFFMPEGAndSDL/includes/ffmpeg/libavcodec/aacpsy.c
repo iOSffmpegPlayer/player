@@ -541,8 +541,10 @@ static float calc_reduced_thr_3gpp(AacPsyBand *band, float min_snr,
     float thr = band->thr;
 
     if (band->energy > thr) {
-        thr = powf(thr, 0.25f) + reduction;
-        thr = powf(thr, 4.0f);
+        thr = sqrtf(thr);
+        thr = sqrtf(thr) + reduction;
+        thr *= thr;
+        thr *= thr;
 
         /* This deviates from the 3GPP spec to match the reference encoder.
          * It performs min(thr_reduced, max(thr, energy/min_snr)) only for bands
@@ -582,13 +584,15 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
             AacPsyBand *band = &pch->band[w+g];
 
             float form_factor = 0.0f;
+            float Temp;
             band->energy = 0.0f;
             for (i = 0; i < band_sizes[g]; i++) {
                 band->energy += coefs[start+i] * coefs[start+i];
                 form_factor  += sqrtf(fabs(coefs[start+i]));
             }
+            Temp = band->energy > 0 ? sqrtf((float)band_sizes[g] / band->energy) : 0;
             band->thr      = band->energy * 0.001258925f;
-            band->nz_lines = band->energy>0 ? form_factor / powf(band->energy / band_sizes[g], 0.25f) : 0;
+            band->nz_lines = form_factor * sqrtf(Temp);
 
             start += band_sizes[g];
         }
@@ -597,7 +601,7 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
     for (w = 0; w < wi->num_windows*16; w += 16) {
         AacPsyBand *bands = &pch->band[w];
 
-        //5.4.2.3 "Spreading" & 5.4.3 "Spreaded Energy Calculation"
+        /* 5.4.2.3 "Spreading" & 5.4.3 "Spread Energy Calculation" */
         spread_en[0] = bands[0].energy;
         for (g = 1; g < num_bands; g++) {
             bands[g].thr   = FFMAX(bands[g].thr,    bands[g-1].thr * coeffs[g].spread_hi[0]);
@@ -617,7 +621,7 @@ static void psy_3gpp_analyze_channel(FFPsyContext *ctx, int channel,
                 band->thr = FFMAX(PSY_3GPP_RPEMIN*band->thr, FFMIN(band->thr,
                                   PSY_3GPP_RPELEV*pch->prev_band[w+g].thr_quiet));
 
-            /* 5.6.1.3.1 "Prepatory steps of the perceptual entropy calculation" */
+            /* 5.6.1.3.1 "Preparatory steps of the perceptual entropy calculation" */
             pe += calc_pe_3gpp(band);
             a  += band->pe_const;
             active_lines += band->active_lines;

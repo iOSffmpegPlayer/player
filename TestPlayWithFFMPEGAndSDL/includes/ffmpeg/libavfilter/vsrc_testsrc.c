@@ -170,7 +170,6 @@ static int request_frame(AVFilterLink *outlink)
 {
     TestSourceContext *test = outlink->src->priv;
     AVFilterBufferRef *outpicref;
-    int ret = 0;
 
     if (test->duration >= 0 &&
         av_rescale_q(test->pts, test->time_base, AV_TIME_BASE_Q) >= test->duration)
@@ -203,12 +202,7 @@ static int request_frame(AVFilterLink *outlink)
     test->pts++;
     test->nb_frame++;
 
-    if ((ret = ff_start_frame(outlink, outpicref)) < 0 ||
-        (ret = ff_draw_slice(outlink, 0, test->h, 1)) < 0 ||
-        (ret = ff_end_frame(outlink)) < 0)
-        return ret;
-
-    return 0;
+    return ff_filter_frame(outlink, outpicref);
 }
 
 #if CONFIG_COLOR_FILTER
@@ -254,13 +248,23 @@ static int color_config_props(AVFilterLink *inlink)
     if (av_image_check_size(test->w, test->h, 0, ctx) < 0)
         return AVERROR(EINVAL);
 
-    if (ret = config_props(inlink) < 0)
+    if ((ret = config_props(inlink)) < 0)
         return ret;
 
     av_log(ctx, AV_LOG_VERBOSE, "color:0x%02x%02x%02x%02x\n",
            test->color_rgba[0], test->color_rgba[1], test->color_rgba[2], test->color_rgba[3]);
     return 0;
 }
+
+static const AVFilterPad color_outputs[] = {
+    {
+        .name          = "default",
+        .type          = AVMEDIA_TYPE_VIDEO,
+        .request_frame = request_frame,
+        .config_props  = color_config_props,
+    },
+    {  NULL }
+};
 
 AVFilter avfilter_vsrc_color = {
     .name        = "color",
@@ -271,22 +275,9 @@ AVFilter avfilter_vsrc_color = {
     .uninit    = uninit,
 
     .query_formats = color_query_formats,
-
-    .inputs = (const AVFilterPad[]) {
-        { .name = NULL }
-    },
-
-    .outputs = (const AVFilterPad[]) {
-        {
-            .name            = "default",
-            .type            = AVMEDIA_TYPE_VIDEO,
-            .request_frame   = request_frame,
-            .config_props    = color_config_props,
-        },
-        { .name = NULL }
-    },
-
-    .priv_class = &color_class,
+    .inputs        = NULL,
+    .outputs       = color_outputs,
+    .priv_class    = &color_class,
 };
 
 #endif /* CONFIG_COLOR_FILTER */
@@ -307,19 +298,24 @@ static av_cold int nullsrc_init(AVFilterContext *ctx, const char *args)
     return init(ctx, args);
 }
 
+static const AVFilterPad nullsrc_outputs[] = {
+    {
+        .name          = "default",
+        .type          = AVMEDIA_TYPE_VIDEO,
+        .request_frame = request_frame,
+        .config_props  = config_props,
+    },
+    { NULL },
+};
+
 AVFilter avfilter_vsrc_nullsrc = {
     .name        = "nullsrc",
     .description = NULL_IF_CONFIG_SMALL("Null video source, return unprocessed video frames."),
     .init       = nullsrc_init,
     .uninit     = uninit,
     .priv_size  = sizeof(TestSourceContext),
-
-    .inputs    = (const AVFilterPad[]) {{ .name = NULL}},
-    .outputs   = (const AVFilterPad[]) {{ .name = "default",
-                                    .type = AVMEDIA_TYPE_VIDEO,
-                                    .request_frame = request_frame,
-                                    .config_props  = config_props, },
-                                  { .name = NULL}},
+    .inputs     = NULL,
+    .outputs    = nullsrc_outputs,
     .priv_class = &nullsrc_class,
 };
 
@@ -773,6 +769,16 @@ static int smptebars_config_props(AVFilterLink *outlink)
     return config_props(outlink);
 }
 
+static const AVFilterPad smptebars_outputs[] = {
+    {
+        .name          = "default",
+        .type          = AVMEDIA_TYPE_VIDEO,
+        .request_frame = request_frame,
+        .config_props  = smptebars_config_props,
+    },
+    { NULL }
+};
+
 AVFilter avfilter_vsrc_smptebars = {
     .name      = "smptebars",
     .description = NULL_IF_CONFIG_SMALL("Generate SMPTE color bars."),
@@ -781,22 +787,9 @@ AVFilter avfilter_vsrc_smptebars = {
     .uninit    = uninit,
 
     .query_formats = smptebars_query_formats,
-
-    .inputs = (const AVFilterPad[]) {
-        { .name = NULL }
-    },
-
-    .outputs = (const AVFilterPad[]) {
-        {
-            .name = "default",
-            .type = AVMEDIA_TYPE_VIDEO,
-            .request_frame = request_frame,
-            .config_props  = smptebars_config_props,
-        },
-        { .name = NULL }
-    },
-
-    .priv_class = &smptebars_class,
+    .inputs        = NULL,
+    .outputs       = smptebars_outputs,
+    .priv_class    = &smptebars_class,
 };
 
 #endif  /* CONFIG_SMPTEBARS_FILTER */

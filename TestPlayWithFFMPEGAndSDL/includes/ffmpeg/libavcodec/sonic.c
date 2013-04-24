@@ -632,7 +632,7 @@ static int sonic_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
     int ret;
     const short *samples = (const int16_t*)frame->data[0];
 
-    if ((ret = ff_alloc_packet2(avctx, avpkt, s->frame_size * 5 + 1000)))
+    if ((ret = ff_alloc_packet2(avctx, avpkt, s->frame_size * 5 + 1000)) < 0)
         return ret;
 
     init_put_bits(&pb, avpkt->data, avpkt->size);
@@ -877,7 +877,7 @@ static int sonic_decode_frame(AVCodecContext *avctx,
     if (buf_size == 0) return 0;
 
     s->frame.nb_samples = s->frame_size;
-    if ((ret = avctx->get_buffer(avctx, &s->frame)) < 0) {
+    if ((ret = ff_get_buffer(avctx, &s->frame)) < 0) {
         av_log(avctx, AV_LOG_ERROR, "get_buffer() failed\n");
         return ret;
     }

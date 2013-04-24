@@ -32,7 +32,6 @@
 
 #include "libavutil/float_dsp.h"
 #include "avcodec.h"
-#include "dsputil.h"
 #include "fft.h"
 #include "mpeg4audio.h"
 #include "sbr.h"
@@ -236,9 +235,10 @@ typedef struct SingleChannelElement {
     uint8_t zeroes[128];                            ///< band is not coded (used by encoder)
     DECLARE_ALIGNED(32, float,   coeffs)[1024];     ///< coefficients for IMDCT
     DECLARE_ALIGNED(32, float,   saved)[1024];      ///< overlap
-    DECLARE_ALIGNED(32, float,   ret)[2048];        ///< PCM output
+    DECLARE_ALIGNED(32, float,   ret_buf)[2048];    ///< PCM output buffer
     DECLARE_ALIGNED(16, float,   ltp_state)[3072];  ///< time signal for LTP
     PredictorState predictor_state[MAX_PREDICTORS];
+    float *ret;                                     ///< PCM output
 } SingleChannelElement;
 
 /**
@@ -259,9 +259,10 @@ typedef struct ChannelElement {
 /**
  * main AAC context
  */
-typedef struct AACContext {
+struct AACContext {
+    AVClass        *class;
     AVCodecContext *avctx;
-    AVFrame frame;
+    AVFrame *frame;
 
     int is_saved;                 ///< Set if elements have stored overlap from previous frame.
     DynamicRangeControl che_drc;
@@ -290,17 +291,16 @@ typedef struct AACContext {
     FFTContext mdct;
     FFTContext mdct_small;
     FFTContext mdct_ltp;
-    DSPContext dsp;
     FmtConvertContext fmt_conv;
     AVFloatDSPContext fdsp;
     int random_state;
     /** @} */
 
     /**
-     * @name Members used for output interleaving
+     * @name Members used for output
      * @{
      */
-    float *output_data[MAX_CHANNELS];                 ///< Points to each element's 'ret' buffer (PCM output).
+    SingleChannelElement *output_element[MAX_CHANNELS]; ///< Points to each SingleChannelElement
     /** @} */
 
 
@@ -308,14 +308,26 @@ typedef struct AACContext {
      * @name Japanese DTV specific extension
      * @{
      */
-    int enable_jp_dmono; ///< enable japanese DTV specific 'dual mono'
-    int dmono_mode;      ///< select the channel to decode in dual mono.
+    int force_dmono_mode;///< 0->not dmono, 1->use first channel, 2->use second channel
+    int dmono_mode;      ///< 0->not dmono, 1->use first channel, 2->use second channel
     /** @} */
 
     DECLARE_ALIGNED(32, float, temp)[128];
 
     OutputConfiguration oc[2];
     int warned_num_aac_frames;
-} AACContext;
+
+    /* aacdec functions pointers */
+    void (*imdct_and_windowing)(AACContext *ac, SingleChannelElement *sce);
+    void (*apply_ltp)(AACContext *ac, SingleChannelElement *sce);
+    void (*apply_tns)(float coef[1024], TemporalNoiseShaping *tns,
+                      IndividualChannelStream *ics, int decode);
+    void (*windowing_and_mdct_ltp)(AACContext *ac, float *out,
+                                   float *in, IndividualChannelStream *ics);
+    void (*update_ltp)(AACContext *ac, SingleChannelElement *sce);
+
+};
+
+void ff_aacdec_init_mips(AACContext *c);
 
 #endif /* AVCODEC_AAC_H */

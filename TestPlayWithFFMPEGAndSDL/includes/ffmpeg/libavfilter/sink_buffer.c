@@ -44,15 +44,10 @@ AVBufferSinkParams *av_buffersink_params_alloc(void)
 
 AVABufferSinkParams *av_abuffersink_params_alloc(void)
 {
-    static const int sample_fmts[] = { AV_SAMPLE_FMT_NONE };
-    static const int64_t channel_layouts[] = { -1 };
-    AVABufferSinkParams *params = av_malloc(sizeof(AVABufferSinkParams));
+    AVABufferSinkParams *params = av_mallocz(sizeof(AVABufferSinkParams));
 
     if (!params)
         return NULL;
-
-    params->sample_fmts = sample_fmts;
-    params->channel_layouts = channel_layouts;
     return params;
 }
 
@@ -66,6 +61,8 @@ typedef struct {
     /* only used for audio */
     enum AVSampleFormat *sample_fmts;       ///< list of accepted sample formats, terminated by AV_SAMPLE_FMT_NONE
     int64_t *channel_layouts;               ///< list of accepted channel layouts, terminated by -1
+    int all_channel_counts;
+    int *sample_rates;                      ///< list of accepted sample rates, terminated by -1
 } BufferSinkContext;
 
 #define FIFO_INIT_SIZE 8
@@ -117,16 +114,14 @@ static int add_buffer_ref(AVFilterContext *ctx, AVFilterBufferRef *ref)
     return 0;
 }
 
-static int end_frame(AVFilterLink *inlink)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *ref)
 {
     AVFilterContext *ctx = inlink->dst;
     BufferSinkContext *buf = inlink->dst->priv;
     int ret;
 
-    av_assert1(inlink->cur_buf);
-    if ((ret = add_buffer_ref(ctx, inlink->cur_buf)) < 0)
+    if ((ret = add_buffer_ref(ctx, ref)) < 0)
         return ret;
-    inlink->cur_buf = NULL;
     if (buf->warning_limit &&
         av_fifo_size(buf->fifo) / sizeof(AVFilterBufferRef *) >= buf->warning_limit) {
         av_log(ctx, AV_LOG_WARNING,
@@ -234,6 +229,16 @@ static int vsink_query_formats(AVFilterContext *ctx)
     return 0;
 }
 
+static const AVFilterPad ffbuffersink_inputs[] = {
+    {
+        .name      = "default",
+        .type      = AVMEDIA_TYPE_VIDEO,
+        .filter_frame = filter_frame,
+        .min_perms = AV_PERM_READ | AV_PERM_PRESERVE,
+    },
+    { NULL },
+};
+
 AVFilter avfilter_vsink_ffbuffersink = {
     .name      = "ffbuffersink",
     .description = NULL_IF_CONFIG_SMALL("Buffer video frames, and make them available to the end of the filter graph."),
@@ -242,13 +247,18 @@ AVFilter avfilter_vsink_ffbuffersink = {
     .uninit    = vsink_uninit,
 
     .query_formats = vsink_query_formats,
+    .inputs        = ffbuffersink_inputs,
+    .outputs       = NULL,
+};
 
-    .inputs    = (const AVFilterPad[]) {{ .name    = "default",
-                                    .type          = AVMEDIA_TYPE_VIDEO,
-                                    .end_frame     = end_frame,
-                                    .min_perms     = AV_PERM_READ | AV_PERM_PRESERVE, },
-                                  { .name = NULL }},
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+static const AVFilterPad buffersink_inputs[] = {
+    {
+        .name      = "default",
+        .type      = AVMEDIA_TYPE_VIDEO,
+        .filter_frame = filter_frame,
+        .min_perms = AV_PERM_READ | AV_PERM_PRESERVE,
+    },
+    { NULL },
 };
 
 AVFilter avfilter_vsink_buffersink = {
@@ -259,19 +269,29 @@ AVFilter avfilter_vsink_buffersink = {
     .uninit    = vsink_uninit,
 
     .query_formats = vsink_query_formats,
-
-    .inputs    = (const AVFilterPad[]) {{ .name    = "default",
-                                    .type          = AVMEDIA_TYPE_VIDEO,
-                                    .end_frame     = end_frame,
-                                    .min_perms     = AV_PERM_READ | AV_PERM_PRESERVE, },
-                                  { .name = NULL }},
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+    .inputs        = buffersink_inputs,
+    .outputs       = NULL,
 };
 
-static int filter_samples(AVFilterLink *link, AVFilterBufferRef *samplesref)
+static int64_t *concat_channels_lists(const int64_t *layouts, const int *counts)
 {
-    end_frame(link);
-    return 0;
+    int nb_layouts = 0, nb_counts = 0, i;
+    int64_t *list;
+
+    if (layouts)
+        for (; layouts[nb_layouts] != -1; nb_layouts++);
+    if (counts)
+        for (; counts[nb_counts] != -1; nb_counts++);
+    if (nb_counts > INT_MAX - 1 - nb_layouts)
+        return NULL;
+    if (!(list = av_calloc(nb_layouts + nb_counts + 1, sizeof(*list))))
+        return NULL;
+    for (i = 0; i < nb_layouts; i++)
+        list[i] = layouts[i];
+    for (i = 0; i < nb_counts; i++)
+        list[nb_layouts + i] = FF_COUNT2LAYOUT(counts[i]);
+    list[nb_layouts + nb_counts] = -1;
+    return list;
 }
 
 static av_cold int asink_init(AVFilterContext *ctx, const char *args, void *opaque)
@@ -280,22 +300,29 @@ static av_cold int asink_init(AVFilterContext *ctx, const char *args, void *opaq
     AVABufferSinkParams *params = opaque;
 
     if (params && params->sample_fmts) {
-        buf->sample_fmts     = ff_copy_int_list  (params->sample_fmts);
+        buf->sample_fmts = ff_copy_int_list(params->sample_fmts);
         if (!buf->sample_fmts)
-            goto fail_enomem;
+            return AVERROR(ENOMEM);
     }
-    if (params && params->channel_layouts) {
-        buf->channel_layouts = ff_copy_int64_list(params->channel_layouts);
+    if (params && params->sample_rates) {
+        buf->sample_rates = ff_copy_int_list(params->sample_rates);
+        if (!buf->sample_rates)
+            return AVERROR(ENOMEM);
+    }
+    if (params && (params->channel_layouts || params->channel_counts)) {
+        if (params->all_channel_counts) {
+            av_log(ctx, AV_LOG_ERROR,
+                   "Conflicting all_channel_counts and list in parameters\n");
+            return AVERROR(EINVAL);
+        }
+        buf->channel_layouts = concat_channels_lists(params->channel_layouts,
+                                                     params->channel_counts);
         if (!buf->channel_layouts)
-            goto fail_enomem;
+            return AVERROR(ENOMEM);
     }
-    if (!common_init(ctx))
-        return 0;
-
-fail_enomem:
-    av_freep(&buf->sample_fmts);
-    av_freep(&buf->channel_layouts);
-    return AVERROR(ENOMEM);
+    if (params)
+        buf->all_channel_counts = params->all_channel_counts;
+    return common_init(ctx);
 }
 
 static av_cold void asink_uninit(AVFilterContext *ctx)
@@ -303,6 +330,7 @@ static av_cold void asink_uninit(AVFilterContext *ctx)
     BufferSinkContext *buf = ctx->priv;
 
     av_freep(&buf->sample_fmts);
+    av_freep(&buf->sample_rates);
     av_freep(&buf->channel_layouts);
     common_uninit(ctx);
 }
@@ -314,19 +342,38 @@ static int asink_query_formats(AVFilterContext *ctx)
     AVFilterChannelLayouts *layouts = NULL;
 
     if (buf->sample_fmts) {
-    if (!(formats = ff_make_format_list(buf->sample_fmts)))
-        return AVERROR(ENOMEM);
-    ff_set_common_formats(ctx, formats);
+        if (!(formats = ff_make_format_list(buf->sample_fmts)))
+            return AVERROR(ENOMEM);
+        ff_set_common_formats(ctx, formats);
     }
 
-    if (buf->channel_layouts) {
-    if (!(layouts = avfilter_make_format64_list(buf->channel_layouts)))
-        return AVERROR(ENOMEM);
-    ff_set_common_channel_layouts(ctx, layouts);
+    if (buf->channel_layouts || buf->all_channel_counts) {
+            layouts = buf->all_channel_counts ? ff_all_channel_counts() :
+                      avfilter_make_format64_list(buf->channel_layouts);
+        if (!layouts)
+            return AVERROR(ENOMEM);
+        ff_set_common_channel_layouts(ctx, layouts);
+    }
+
+    if (buf->sample_rates) {
+        formats = ff_make_format_list(buf->sample_rates);
+        if (!formats)
+            return AVERROR(ENOMEM);
+        ff_set_common_samplerates(ctx, formats);
     }
 
     return 0;
 }
+
+static const AVFilterPad ffabuffersink_inputs[] = {
+    {
+        .name           = "default",
+        .type           = AVMEDIA_TYPE_AUDIO,
+        .filter_frame   = filter_frame,
+        .min_perms      = AV_PERM_READ | AV_PERM_PRESERVE,
+    },
+    { NULL },
+};
 
 AVFilter avfilter_asink_ffabuffersink = {
     .name      = "ffabuffersink",
@@ -335,13 +382,18 @@ AVFilter avfilter_asink_ffabuffersink = {
     .uninit    = asink_uninit,
     .priv_size = sizeof(BufferSinkContext),
     .query_formats = asink_query_formats,
+    .inputs        = ffabuffersink_inputs,
+    .outputs       = NULL,
+};
 
-    .inputs    = (const AVFilterPad[]) {{ .name     = "default",
-                                    .type           = AVMEDIA_TYPE_AUDIO,
-                                    .filter_samples = filter_samples,
-                                    .min_perms      = AV_PERM_READ | AV_PERM_PRESERVE, },
-                                  { .name = NULL }},
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+static const AVFilterPad abuffersink_inputs[] = {
+    {
+        .name           = "default",
+        .type           = AVMEDIA_TYPE_AUDIO,
+        .filter_frame   = filter_frame,
+        .min_perms      = AV_PERM_READ | AV_PERM_PRESERVE,
+    },
+    { NULL },
 };
 
 AVFilter avfilter_asink_abuffersink = {
@@ -351,13 +403,8 @@ AVFilter avfilter_asink_abuffersink = {
     .uninit    = asink_uninit,
     .priv_size = sizeof(BufferSinkContext),
     .query_formats = asink_query_formats,
-
-    .inputs    = (const AVFilterPad[]) {{ .name     = "default",
-                                    .type           = AVMEDIA_TYPE_AUDIO,
-                                    .filter_samples = filter_samples,
-                                    .min_perms      = AV_PERM_READ | AV_PERM_PRESERVE, },
-                                  { .name = NULL }},
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+    .inputs        = abuffersink_inputs,
+    .outputs       = NULL,
 };
 
 /* Libav compatibility API */
@@ -372,13 +419,13 @@ int av_buffersink_read(AVFilterContext *ctx, AVFilterBufferRef **buf)
 
     if (ctx->filter->          inputs[0].start_frame ==
         avfilter_vsink_buffer. inputs[0].start_frame ||
-        ctx->filter->          inputs[0].filter_samples ==
-        avfilter_asink_abuffer.inputs[0].filter_samples)
+        ctx->filter->          inputs[0].filter_frame ==
+        avfilter_asink_abuffer.inputs[0].filter_frame)
         return ff_buffersink_read_compat(ctx, buf);
     av_assert0(ctx->filter->                inputs[0].end_frame ==
                avfilter_vsink_ffbuffersink. inputs[0].end_frame ||
-               ctx->filter->                inputs[0].filter_samples ==
-               avfilter_asink_ffabuffersink.inputs[0].filter_samples);
+               ctx->filter->                inputs[0].filter_frame ==
+               avfilter_asink_ffabuffersink.inputs[0].filter_frame);
 
     ret = av_buffersink_get_buffer_ref(ctx, &tbuf,
                                        buf ? 0 : AV_BUFFERSINK_FLAG_PEEK);
@@ -399,11 +446,11 @@ int av_buffersink_read_samples(AVFilterContext *ctx, AVFilterBufferRef **buf,
     AVFilterLink *link = ctx->inputs[0];
     int nb_channels = av_get_channel_layout_nb_channels(link->channel_layout);
 
-    if (ctx->filter->          inputs[0].filter_samples ==
-        avfilter_asink_abuffer.inputs[0].filter_samples)
+    if (ctx->filter->          inputs[0].filter_frame ==
+        avfilter_asink_abuffer.inputs[0].filter_frame)
         return ff_buffersink_read_samples_compat(ctx, buf, nb_samples);
-    av_assert0(ctx->filter->                inputs[0].filter_samples ==
-               avfilter_asink_ffabuffersink.inputs[0].filter_samples);
+    av_assert0(ctx->filter->                inputs[0].filter_frame ==
+               avfilter_asink_ffabuffersink.inputs[0].filter_frame);
 
     tbuf = ff_get_audio_buffer(link, AV_PERM_WRITE, nb_samples);
     if (!tbuf)

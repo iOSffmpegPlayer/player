@@ -63,8 +63,10 @@ static av_cold void uninit(AVFilterContext *ctx)
     int i;
 
     for (i = 0; i < am->nb_inputs; i++) {
-        ff_bufqueue_discard_all(&am->in[i].queue);
-        av_freep(&ctx->input_pads[i].name);
+        if (am->in)
+            ff_bufqueue_discard_all(&am->in[i].queue);
+        if (ctx->input_pads)
+            av_freep(&ctx->input_pads[i].name);
     }
     av_freep(&am->in);
 }
@@ -217,7 +219,7 @@ static inline void copy_samples(int nb_inputs, struct amerge_input in[],
     }
 }
 
-static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *insamples)
 {
     AVFilterContext *ctx = inlink->dst;
     AMergeContext *am = ctx->priv;
@@ -231,6 +233,11 @@ static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
         if (inlink == ctx->inputs[input_number])
             break;
     av_assert1(input_number < am->nb_inputs);
+    if (ff_bufqueue_is_full(&am->in[input_number].queue)) {
+        av_log(ctx, AV_LOG_ERROR, "Buffer queue overflow\n");
+        avfilter_unref_buffer(insamples);
+        return AVERROR(ENOMEM);
+    }
     ff_bufqueue_add(ctx, &am->in[input_number].queue, insamples);
     am->in[input_number].nb_samples += insamples->audio->nb_samples;
     nb_samples = am->in[0].nb_samples;
@@ -255,6 +262,7 @@ static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
 
     outbuf->audio->nb_samples     = nb_samples;
     outbuf->audio->channel_layout = outlink->channel_layout;
+    outbuf->audio->channels       = outlink->channels;
 
     while (nb_samples) {
         ns = nb_samples;
@@ -290,7 +298,7 @@ static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
             }
         }
     }
-    return ff_filter_samples(ctx->outputs[0], outbuf);
+    return ff_filter_frame(ctx->outputs[0], outbuf);
 }
 
 static av_cold int init(AVFilterContext *ctx, const char *args)
@@ -313,7 +321,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
         AVFilterPad pad = {
             .name             = name,
             .type             = AVMEDIA_TYPE_AUDIO,
-            .filter_samples   = filter_samples,
+            .filter_frame     = filter_frame,
             .min_perms        = AV_PERM_READ | AV_PERM_PRESERVE,
         };
         if (!name)
@@ -323,22 +331,25 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
     return 0;
 }
 
+static const AVFilterPad amerge_outputs[] = {
+    {
+        .name          = "default",
+        .type          = AVMEDIA_TYPE_AUDIO,
+        .config_props  = config_output,
+        .request_frame = request_frame,
+    },
+    { NULL }
+};
+
 AVFilter avfilter_af_amerge = {
     .name          = "amerge",
-    .description   = NULL_IF_CONFIG_SMALL("Merge two audio streams into "
+    .description   = NULL_IF_CONFIG_SMALL("Merge two or more audio streams into "
                                           "a single multi-channel stream."),
     .priv_size     = sizeof(AMergeContext),
     .init          = init,
     .uninit        = uninit,
     .query_formats = query_formats,
-
-    .inputs    = (const AVFilterPad[]) { { .name = NULL } },
-    .outputs   = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_AUDIO,
-          .config_props     = config_output,
-          .request_frame    = request_frame, },
-        { .name = NULL }
-    },
-    .priv_class = &amerge_class,
+    .inputs        = NULL,
+    .outputs       = amerge_outputs,
+    .priv_class    = &amerge_class,
 };

@@ -704,9 +704,9 @@ static void ff_id3v2_parse(AVFormatContext *s, int len, uint8_t version, uint8_t
                 uint8_t *b;
 
                 b = buffer;
-                while (avio_tell(s->pb) < end) {
+                while (avio_tell(s->pb) < end && b - buffer < tlen) {
                     *b++ = avio_r8(s->pb);
-                    if (*(b - 1) == 0xff && avio_tell(s->pb) < end - 1) {
+                    if (*(b - 1) == 0xff && avio_tell(s->pb) < end - 1 && b - buffer < tlen) {
                         uint8_t val = avio_r8(s->pb);
                         *b++ = val ? val : avio_r8(s->pb);
                     }
@@ -788,10 +788,12 @@ void ff_id3v2_read(AVFormatContext *s, const char *magic, ID3v2ExtraMeta **extra
         /* save the current offset in case there's nothing to read/skip */
         off = avio_tell(s->pb);
         ret = avio_read(s->pb, buf, ID3v2_HEADER_SIZE);
-        if (ret != ID3v2_HEADER_SIZE)
+        if (ret != ID3v2_HEADER_SIZE) {
+            avio_seek(s->pb, off, SEEK_SET);
             break;
-            found_header = ff_id3v2_match(buf, magic);
-            if (found_header) {
+        }
+        found_header = ff_id3v2_match(buf, magic);
+        if (found_header) {
             /* parse ID3v2 header */
             len = ((buf[6] & 0x7f) << 21) |
                   ((buf[7] & 0x7f) << 14) |

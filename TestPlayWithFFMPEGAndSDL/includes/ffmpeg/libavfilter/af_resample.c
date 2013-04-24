@@ -25,6 +25,7 @@
 #include "libavutil/avassert.h"
 #include "libavutil/avstring.h"
 #include "libavutil/common.h"
+#include "libavutil/dict.h"
 #include "libavutil/mathematics.h"
 #include "libavutil/opt.h"
 
@@ -37,12 +38,36 @@
 
 typedef struct ResampleContext {
     AVAudioResampleContext *avr;
+    AVDictionary *options;
 
     int64_t next_pts;
 
-    /* set by filter_samples() to signal an output frame to request_frame() */
+    /* set by filter_frame() to signal an output frame to request_frame() */
     int got_output;
 } ResampleContext;
+
+static av_cold int init(AVFilterContext *ctx, const char *args)
+{
+    ResampleContext *s = ctx->priv;
+
+    if (args) {
+        int ret = av_dict_parse_string(&s->options, args, "=", ":", 0);
+        if (ret < 0) {
+            av_log(ctx, AV_LOG_ERROR, "error setting option string: %s\n", args);
+            return ret;
+        }
+
+        /* do not allow the user to override basic format options */
+        av_dict_set(&s->options,  "in_channel_layout", NULL, 0);
+        av_dict_set(&s->options, "out_channel_layout", NULL, 0);
+        av_dict_set(&s->options,  "in_sample_fmt",     NULL, 0);
+        av_dict_set(&s->options, "out_sample_fmt",     NULL, 0);
+        av_dict_set(&s->options,  "in_sample_rate",    NULL, 0);
+        av_dict_set(&s->options, "out_sample_rate",    NULL, 0);
+    }
+
+    return 0;
+}
 
 static av_cold void uninit(AVFilterContext *ctx)
 {
@@ -52,6 +77,7 @@ static av_cold void uninit(AVFilterContext *ctx)
         avresample_close(s->avr);
         avresample_free(&s->avr);
     }
+    av_dict_free(&s->options);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -102,6 +128,14 @@ static int config_output(AVFilterLink *outlink)
 
     if (!(s->avr = avresample_alloc_context()))
         return AVERROR(ENOMEM);
+
+    if (s->options) {
+        AVDictionaryEntry *e = NULL;
+        while ((e = av_dict_get(s->options, "", e, AV_DICT_IGNORE_SUFFIX)))
+            av_log(ctx, AV_LOG_VERBOSE, "lavr option: %s=%s\n", e->key, e->value);
+
+        av_opt_set_dict(s->avr, &s->options);
+    }
 
     av_opt_set_int(s->avr,  "in_channel_layout", inlink ->channel_layout, 0);
     av_opt_set_int(s->avr, "out_channel_layout", outlink->channel_layout, 0);
@@ -162,12 +196,12 @@ static int request_frame(AVFilterLink *outlink)
         }
 
         buf->pts = s->next_pts;
-        return ff_filter_samples(outlink, buf);
+        return ff_filter_frame(outlink, buf);
     }
     return ret;
 }
 
-static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *buf)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *buf)
 {
     AVFilterContext  *ctx = inlink->dst;
     ResampleContext    *s = ctx->priv;
@@ -224,7 +258,7 @@ static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *buf)
 
             s->next_pts = buf_out->pts + buf_out->audio->nb_samples;
 
-            ret = ff_filter_samples(outlink, buf_out);
+            ret = ff_filter_frame(outlink, buf_out);
             s->got_output = 1;
         }
 
@@ -232,7 +266,7 @@ fail:
         avfilter_unref_buffer(buf);
     } else {
         buf->format = outlink->format;
-        ret = ff_filter_samples(outlink, buf);
+        ret = ff_filter_frame(outlink, buf);
         s->got_output = 1;
     }
 
@@ -243,7 +277,7 @@ static const AVFilterPad avfilter_af_resample_inputs[] = {
     {
         .name           = "default",
         .type           = AVMEDIA_TYPE_AUDIO,
-        .filter_samples = filter_samples,
+        .filter_frame   = filter_frame,
         .min_perms      = AV_PERM_READ
     },
     { NULL }
@@ -264,6 +298,7 @@ AVFilter avfilter_af_resample = {
     .description   = NULL_IF_CONFIG_SMALL("Audio resampling and conversion."),
     .priv_size     = sizeof(ResampleContext),
 
+    .init           = init,
     .uninit         = uninit,
     .query_formats  = query_formats,
 

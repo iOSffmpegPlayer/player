@@ -130,74 +130,43 @@ static inline void compute_sin_and_cos(HueContext *hue)
 static inline int set_options(AVFilterContext *ctx, const char *args)
 {
     HueContext *hue = ctx->priv;
-    int n, ret;
-    char c1 = 0, c2 = 0;
+    int ret;
     char   *old_hue_expr,  *old_hue_deg_expr,  *old_saturation_expr;
     AVExpr *old_hue_pexpr, *old_hue_deg_pexpr, *old_saturation_pexpr;
+    static const char *shorthand[] = { "h", "s", NULL };
+    old_hue_expr        = hue->hue_expr;
+    old_hue_deg_expr    = hue->hue_deg_expr;
+    old_saturation_expr = hue->saturation_expr;
 
-    if (args) {
-        /* named options syntax */
-        if (strchr(args, '=')) {
-            old_hue_expr        = hue->hue_expr;
-            old_hue_deg_expr    = hue->hue_deg_expr;
-            old_saturation_expr = hue->saturation_expr;
+    old_hue_pexpr        = hue->hue_pexpr;
+    old_hue_deg_pexpr    = hue->hue_deg_pexpr;
+    old_saturation_pexpr = hue->saturation_pexpr;
 
-            old_hue_pexpr        = hue->hue_pexpr;
-            old_hue_deg_pexpr    = hue->hue_deg_pexpr;
-            old_saturation_pexpr = hue->saturation_pexpr;
+    hue->hue_expr     = NULL;
+    hue->hue_deg_expr = NULL;
+    hue->saturation_expr = NULL;
 
-            hue->hue_expr     = NULL;
-            hue->hue_deg_expr = NULL;
-            hue->saturation_expr = NULL;
+    if ((ret = av_opt_set_from_string(hue, args, shorthand, "=", ":")) < 0)
+        return ret;
+    if (hue->hue_expr && hue->hue_deg_expr) {
+        av_log(ctx, AV_LOG_ERROR,
+               "H and h options are incompatible and cannot be specified "
+               "at the same time\n");
+        hue->hue_expr     = old_hue_expr;
+        hue->hue_deg_expr = old_hue_deg_expr;
 
-            if ((ret = av_set_options_string(hue, args, "=", ":")) < 0)
-                return ret;
-            if (hue->hue_expr && hue->hue_deg_expr) {
-                av_log(ctx, AV_LOG_ERROR,
-                       "H and h options are incompatible and cannot be specified "
-                       "at the same time\n");
-                hue->hue_expr     = old_hue_expr;
-                hue->hue_deg_expr = old_hue_deg_expr;
-
-                return AVERROR(EINVAL);
-            }
-
-            SET_EXPRESSION(hue_deg, h);
-            SET_EXPRESSION(hue, H);
-            SET_EXPRESSION(saturation, s);
-
-            hue->flat_syntax = 0;
-
-            av_log(ctx, AV_LOG_VERBOSE,
-                   "H_expr:%s h_deg_expr:%s s_expr:%s\n",
-                   hue->hue_expr, hue->hue_deg_expr, hue->saturation_expr);
-
-        /* compatibility h:s syntax */
-        } else {
-            n = sscanf(args, "%f%c%f%c", &hue->hue_deg, &c1, &hue->saturation, &c2);
-            if (n != 1 && (n != 3 || c1 != ':')) {
-                av_log(ctx, AV_LOG_ERROR,
-                       "Invalid syntax for argument '%s': "
-                       "must be in the form 'hue[:saturation]'\n", args);
-                return AVERROR(EINVAL);
-            }
-
-            if (hue->saturation < SAT_MIN_VAL || hue->saturation > SAT_MAX_VAL) {
-                av_log(ctx, AV_LOG_ERROR,
-                       "Invalid value for saturation %0.1f: "
-                       "must be included between range %d and +%d\n",
-                       hue->saturation, SAT_MIN_VAL, SAT_MAX_VAL);
-                return AVERROR(EINVAL);
-            }
-
-            hue->hue = hue->hue_deg * M_PI / 180;
-            hue->flat_syntax = 1;
-
-            av_log(ctx, AV_LOG_VERBOSE,
-                   "H:%0.1f h:%0.1f s:%0.1f\n",
-                   hue->hue, hue->hue_deg, hue->saturation);
-        }
+        return AVERROR(EINVAL);
     }
+
+    SET_EXPRESSION(hue_deg, h);
+    SET_EXPRESSION(hue, H);
+    SET_EXPRESSION(saturation, s);
+
+    hue->flat_syntax = 0;
+
+    av_log(ctx, AV_LOG_VERBOSE,
+           "H_expr:%s h_deg_expr:%s s_expr:%s\n",
+           hue->hue_expr, hue->hue_deg_expr, hue->saturation_expr);
 
     compute_sin_and_cos(hue);
 
@@ -307,22 +276,18 @@ static void process_chrominance(uint8_t *udst, uint8_t *vdst, const int dst_line
 #define TS2D(ts) ((ts) == AV_NOPTS_VALUE ? NAN : (double)(ts))
 #define TS2T(ts, tb) ((ts) == AV_NOPTS_VALUE ? NAN : (double)(ts) * av_q2d(tb))
 
-static int start_frame(AVFilterLink *inlink, AVFilterBufferRef *inpic)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *inpic)
 {
     HueContext *hue = inlink->dst->priv;
     AVFilterLink *outlink = inlink->dst->outputs[0];
-    AVFilterBufferRef *buf_out;
+    AVFilterBufferRef *outpic;
 
-    outlink->out_buf = ff_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
-    if (!outlink->out_buf)
+    outpic = ff_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
+    if (!outpic) {
+        avfilter_unref_bufferp(&inpic);
         return AVERROR(ENOMEM);
-
-    avfilter_copy_buffer_ref_props(outlink->out_buf, inpic);
-    outlink->out_buf->video->w = outlink->w;
-    outlink->out_buf->video->h = outlink->h;
-    buf_out = avfilter_ref_buffer(outlink->out_buf, ~0);
-    if (!buf_out)
-        return AVERROR(ENOMEM);
+    }
+    avfilter_copy_buffer_ref_props(outpic, inpic);
 
     if (!hue->flat_syntax) {
         hue->var_values[VAR_T]   = TS2T(inpic->pts, inlink->time_base);
@@ -356,35 +321,17 @@ static int start_frame(AVFilterLink *inlink, AVFilterBufferRef *inpic)
 
     hue->var_values[VAR_N] += 1;
 
-    return ff_start_frame(outlink, buf_out);
-}
-
-static int draw_slice(AVFilterLink *inlink, int y, int h, int slice_dir)
-{
-    HueContext        *hue    = inlink->dst->priv;
-    AVFilterBufferRef *inpic  = inlink->cur_buf;
-    AVFilterBufferRef *outpic = inlink->dst->outputs[0]->out_buf;
-    uint8_t *inrow[3], *outrow[3]; // 0 : Y, 1 : U, 2 : V
-    int plane;
-
-    inrow[0]  = inpic->data[0]  + y * inpic->linesize[0];
-    outrow[0] = outpic->data[0] + y * outpic->linesize[0];
-
-    for (plane = 1; plane < 3; plane++) {
-        inrow[plane]  = inpic->data[plane]  + (y >> hue->vsub) * inpic->linesize[plane];
-        outrow[plane] = outpic->data[plane] + (y >> hue->vsub) * outpic->linesize[plane];
-    }
-
-    av_image_copy_plane(outrow[0], outpic->linesize[0],
-                        inrow[0],  inpic->linesize[0],
+    av_image_copy_plane(outpic->data[0], outpic->linesize[0],
+                        inpic->data[0],  inpic->linesize[0],
                         inlink->w, inlink->h);
 
-    process_chrominance(outrow[1], outrow[2], outpic->linesize[1],
-                        inrow[1], inrow[2], inpic->linesize[1],
+    process_chrominance(outpic->data[1], outpic->data[2], outpic->linesize[1],
+                        inpic->data[1],  inpic->data[2],  inpic->linesize[1],
                         inlink->w >> hue->hsub, inlink->h >> hue->vsub,
                         hue->hue_cos, hue->hue_sin);
 
-    return ff_draw_slice(inlink->dst->outputs[0], y, h, slice_dir);
+    avfilter_unref_bufferp(&inpic);
+    return ff_filter_frame(outlink, outpic);
 }
 
 static int process_command(AVFilterContext *ctx, const char *cmd, const char *args,
@@ -396,6 +343,25 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
         return AVERROR(ENOSYS);
 }
 
+static const AVFilterPad hue_inputs[] = {
+    {
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_VIDEO,
+        .filter_frame = filter_frame,
+        .config_props = config_props,
+        .min_perms    = AV_PERM_READ,
+    },
+    { NULL }
+};
+
+static const AVFilterPad hue_outputs[] = {
+    {
+        .name = "default",
+        .type = AVMEDIA_TYPE_VIDEO,
+    },
+    { NULL }
+};
+
 AVFilter avfilter_vf_hue = {
     .name        = "hue",
     .description = NULL_IF_CONFIG_SMALL("Adjust the hue and saturation of the input video."),
@@ -406,24 +372,7 @@ AVFilter avfilter_vf_hue = {
     .uninit        = uninit,
     .query_formats = query_formats,
     .process_command = process_command,
-
-    .inputs = (const AVFilterPad[]) {
-        {
-            .name         = "default",
-            .type         = AVMEDIA_TYPE_VIDEO,
-            .start_frame  = start_frame,
-            .draw_slice   = draw_slice,
-            .config_props = config_props,
-            .min_perms    = AV_PERM_READ,
-        },
-        { .name = NULL }
-    },
-    .outputs = (const AVFilterPad[]) {
-        {
-            .name         = "default",
-            .type         = AVMEDIA_TYPE_VIDEO,
-        },
-        { .name = NULL }
-    },
-    .priv_class = &hue_class,
+    .inputs          = hue_inputs,
+    .outputs         = hue_outputs,
+    .priv_class      = &hue_class,
 };

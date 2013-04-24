@@ -572,12 +572,9 @@ static int movie_push_frame(AVFilterContext *ctx, unsigned out_id)
     case AVMEDIA_TYPE_VIDEO:
         if (!movie->frame->sample_aspect_ratio.num)
             buf->video->sample_aspect_ratio = st->st->sample_aspect_ratio;
-        ff_start_frame(outlink, buf);
-        ff_draw_slice(outlink, 0, outlink->h, 1);
-        ff_end_frame(outlink);
-        break;
+        /* Fall through */
     case AVMEDIA_TYPE_AUDIO:
-        ff_filter_samples(outlink, buf);
+        ff_filter_frame(outlink, buf);
         break;
     }
 
@@ -615,7 +612,7 @@ AVFilter avfilter_avsrc_movie = {
     .query_formats = movie_query_formats,
 
     .inputs    = NULL,
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+    .outputs   = NULL,
     .priv_class = &movie_class,
 };
 
@@ -639,8 +636,8 @@ AVFilter avfilter_avsrc_amovie = {
     .uninit        = movie_uninit,
     .query_formats = movie_query_formats,
 
-    .inputs    = (const AVFilterPad[]) {{ .name = NULL }},
-    .outputs   = (const AVFilterPad[]) {{ .name = NULL }},
+    .inputs     = NULL,
+    .outputs    = NULL,
     .priv_class = &amovie_class,
 };
 

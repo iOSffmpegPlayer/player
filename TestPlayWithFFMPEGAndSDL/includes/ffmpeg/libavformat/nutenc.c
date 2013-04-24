@@ -28,6 +28,7 @@
 #include "nut.h"
 #include "internal.h"
 #include "avio_internal.h"
+#include "riff.h"
 
 static int find_expected_header(AVCodecContext *c, int size, int key_frame,
                                 uint8_t out[64])
@@ -989,7 +990,7 @@ static int nut_write_trailer(AVFormatContext *s)
         write_headers(s, bc);
 
     ret = avio_open_dyn_buf(&dyn_bc);
-    if (ret >= 0) {
+    if (ret >= 0 && nut->sp_count) {
         write_index(nut, dyn_bc);
         put_packet(nut, bc, dyn_bc, 1, INDEX_STARTCODE);
     }

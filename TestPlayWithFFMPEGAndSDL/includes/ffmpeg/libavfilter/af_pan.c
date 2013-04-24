@@ -353,7 +353,7 @@ static int config_props(AVFilterLink *link)
     return 0;
 }
 
-static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
+static int filter_frame(AVFilterLink *inlink, AVFilterBufferRef *insamples)
 {
     int ret;
     int n = insamples->audio->nb_samples;
@@ -364,8 +364,9 @@ static int filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamples)
     swr_convert(pan->swr, outsamples->data, n, (void *)insamples->data, n);
     avfilter_copy_buffer_ref_props(outsamples, insamples);
     outsamples->audio->channel_layout = outlink->channel_layout;
+    outsamples->audio->channels       = outlink->channels;
 
-    ret = ff_filter_samples(outlink, outsamples);
+    ret = ff_filter_frame(outlink, outsamples);
     avfilter_unref_buffer(insamples);
     return ret;
 }
@@ -376,6 +377,25 @@ static av_cold void uninit(AVFilterContext *ctx)
     swr_free(&pan->swr);
 }
 
+static const AVFilterPad pan_inputs[] = {
+    {
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_AUDIO,
+        .config_props = config_props,
+        .filter_frame = filter_frame,
+        .min_perms    = AV_PERM_READ,
+    },
+    { NULL }
+};
+
+static const AVFilterPad pan_outputs[] = {
+    {
+        .name = "default",
+        .type = AVMEDIA_TYPE_AUDIO,
+    },
+    { NULL }
+};
+
 AVFilter avfilter_af_pan = {
     .name          = "pan",
     .description   = NULL_IF_CONFIG_SMALL("Remix channels with coefficients (panning)."),
@@ -383,18 +403,6 @@ AVFilter avfilter_af_pan = {
     .init          = init,
     .uninit        = uninit,
     .query_formats = query_formats,
-
-    .inputs    = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_AUDIO,
-          .config_props     = config_props,
-          .filter_samples   = filter_samples,
-          .min_perms        = AV_PERM_READ, },
-        { .name = NULL}
-    },
-    .outputs   = (const AVFilterPad[]) {
-        { .name             = "default",
-          .type             = AVMEDIA_TYPE_AUDIO, },
-        { .name = NULL}
-    },
+    .inputs        = pan_inputs,
+    .outputs       = pan_outputs,
 };
