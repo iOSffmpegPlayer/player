@@ -313,10 +313,10 @@ static void stream_close(VideoState *is)
     SDL_DestroyMutex(is->subpq_mutex);
     SDL_DestroyCond(is->subpq_cond);
     SDL_DestroyCond(is->continue_read_thread);
-#if !CONFIG_AVFILTER
-    if (is->img_convert_ctx)
-        sws_freeContext(is->img_convert_ctx);
-#endif
+//#if !CONFIG_AVFILTER
+//    if (is->img_convert_ctx)
+//        sws_freeContext(is->img_convert_ctx);
+//#endif
     av_free(is);
 }
 
@@ -758,8 +758,8 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //        avfilter_unref_bufferp(&vp->picref);
 //        vp->picref = src_frame->opaque;
 //#endif
-    SDL_LockMutex(is->pictq_mutex);
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    //SDL_LockMutex(is->pictq_mutex);
+    //NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     @synchronized (kxVideoFrame) {
 
         if (!kxVideoFrame) {
@@ -768,8 +768,8 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         }
 
     }
-    [pool release];
-    SDL_UnlockMutex(is->pictq_mutex);
+    //[pool release];
+    //SDL_UnlockMutex(is->pictq_mutex);
         vp->pts = pts;
         vp->pos = pos;
         vp->skip = 0;
