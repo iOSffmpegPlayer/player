@@ -672,6 +672,11 @@ static void alloc_picture(VideoState *is)
     SDL_UnlockMutex(is->pictq_mutex);
 }
 
+//判断frame是否准备好
+static BOOL isFrameOk = NO;
+static VideoState *showVideoState;
+static AVFrame *showAvFrame;
+
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos)
 {
     VideoPicture *vp;
@@ -758,18 +763,14 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //        avfilter_unref_bufferp(&vp->picref);
 //        vp->picref = src_frame->opaque;
 //#endif
-    //SDL_LockMutex(is->pictq_mutex);
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    @synchronized (kxVideoFrame) {
-
-        if (!kxVideoFrame) {
-            kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:src_frame andvideoCodecCtx:is->video_st->codec];
-
-        }
-
+//    SDL_LockMutex(is->pictq_mutex);
+    if (!isFrameOk) {
+        showVideoState = is;
+        showAvFrame = src_frame;
+        isFrameOk = YES;
     }
-    [pool release];
-    //SDL_UnlockMutex(is->pictq_mutex);
+
+//    SDL_UnlockMutex(is->pictq_mutex);
         vp->pts = pts;
         vp->pos = pos;
         vp->skip = 0;
@@ -2295,8 +2296,8 @@ const char program_name[] = "ffplay";
     VideoState *is;
     char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
     
-//    input_filename = [[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"] UTF8String];
-    input_filename = "udp://@192.168.1.102:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
+//    input_filename = "udp://@192.168.1.102:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 
 
     display_disable = NO;
@@ -2374,23 +2375,64 @@ const char program_name[] = "ffplay";
 
 //    [self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
     //[self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
+//    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(allocImageThread) userInfo:NULL repeats:YES];
     
+//    CADisplayLink *allocImgDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(allocImageThread)];
+//    [allocImgDisplayLink setFrameInterval:1];
+//    [allocImgDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
+
     [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(showVideoThread) userInfo:NULL repeats:YES];
     
     
     event_loop(is);
 }
-- (void)showVideoThread {
 
-    @synchronized (kxVideoFrame) {
-        if (kxVideoFrame) {
-            
-            [_glView render:kxVideoFrame];
-            [kxVideoFrame release];
-            kxVideoFrame = nil;
-            
-        }
+//- (void)allocImageThread {
+//    if (isFrameOk) {
+////        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+////        @synchronized (kxVideoFrame) {
+//        
+//            if (!kxVideoFrame) {
+//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
+//                isFrameOk = NO;
+//
+//            }
+//            
+////        }
+//
+////        [pool release];
+//    }
+//}
+
+- (void)showVideoThread {
+    
+    if (isFrameOk) {
+        //        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+//        @synchronized (kxVideoFrame) {
+        
+            if (!kxVideoFrame) {
+                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
+                [_glView render:kxVideoFrame];
+
+                [kxVideoFrame release];
+                kxVideoFrame = nil;
+                
+                isFrameOk = NO;
+
+            }
+        
+//        }
+        
+        //        [pool release];
     }
+
+//    @synchronized (kxVideoFrame) {
+//        if (kxVideoFrame) {
+//            
+//
+//            
+//        }
+//    }
 
 
 }

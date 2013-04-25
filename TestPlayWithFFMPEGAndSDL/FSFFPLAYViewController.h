@@ -48,6 +48,8 @@
 #import "KxMovieGLView.h"
 #import "KxMovieDecoder.h"
 
+#import <QuartzCore/QuartzCore.h>
+
 //const int program_birth_year = 2003;
 
 #define MAX_QUEUE_SIZE (15 * 1024 * 1024)
@@ -72,7 +74,7 @@
 /* TODO: We assume that a decoded and resampled frame fits into this buffer */
 #define SAMPLE_ARRAY_SIZE (8 * 65536)
 
-static int sws_flags = SWS_BICUBIC;
+//static int sws_flags = SWS_BICUBIC;
 
 
 typedef struct PacketQueue {
@@ -246,6 +248,8 @@ typedef struct VideoState {
 static NSData * copyFrameData(UInt8 *src, int linesize, int width, int height);
 
 static void imageFromAVPicture(AVPicture pict, int width, int height);
+
+//- (void)allocImageThread;
 
 - (void)showVideoThread;
 
