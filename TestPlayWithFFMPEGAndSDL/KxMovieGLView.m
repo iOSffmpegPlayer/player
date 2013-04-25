@@ -247,6 +247,7 @@ static void mat4f_LoadOrtho(float left, float right, float bottom, float top, fl
         glDeleteTextures(1, &_texture);
         _texture = 0;
     }
+    [super dealloc];
 }
 
 @end

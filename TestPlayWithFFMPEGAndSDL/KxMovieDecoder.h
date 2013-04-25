@@ -68,10 +68,14 @@ typedef enum {
 - (UIImage *) asImage;
 @end
 
-@interface KxVideoFrameYUV : KxVideoFrame
-@property (readonly, nonatomic, strong) NSData *luma;
-@property (readonly, nonatomic, strong) NSData *chromaB;
-@property (readonly, nonatomic, strong) NSData *chromaR;
+@interface KxVideoFrameYUV : KxVideoFrame {
+    NSData *luma;
+    NSData *chromaB;
+    NSData *chromaR;
+}
+@property (nonatomic, retain) NSData *luma;
+@property (nonatomic, retain) NSData *chromaB;
+@property (nonatomic, retain) NSData *chromaR;
 @end
 
 @interface KxArtworkFrame : KxMovieFrame

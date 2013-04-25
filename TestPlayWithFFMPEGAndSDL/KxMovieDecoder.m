@@ -344,13 +344,27 @@ static int interrupt_callback(void *ctx);
 @end
 
 @interface KxVideoFrameYUV()
-@property (readwrite, nonatomic, strong) NSData *luma;
-@property (readwrite, nonatomic, strong) NSData *chromaB;
-@property (readwrite, nonatomic, strong) NSData *chromaR;
+//@property (readwrite, nonatomic, strong) NSData *luma;
+//@property (readwrite, nonatomic, strong) NSData *chromaB;
+//@property (readwrite, nonatomic, strong) NSData *chromaR;
 @end
 
 @implementation KxVideoFrameYUV
+
+@synthesize luma;
+@synthesize chromaB;
+@synthesize chromaR;
+
+
 - (KxVideoFrameFormat) format { return KxVideoFrameFormatYUV; }
+
+- (void)dealloc {
+    [luma release];
+    [chromaB release];
+    [chromaR release];
+    [super dealloc];
+}
+
 @end
 
 @interface KxArtworkFrame()
@@ -1192,7 +1206,7 @@ static int interrupt_callback(void *ctx);
     if (!avframe->data[0])
         return nil;
     
-    KxVideoFrame *frame;
+//    KxVideoFrame *frame = nil;
     
 //    if (_videoFrameFormat == KxVideoFrameFormatYUV) {
     
@@ -1213,12 +1227,12 @@ static int interrupt_callback(void *ctx);
                                          videoCodecCtx->width / 2,
                                          videoCodecCtx->height / 2);
         
-        frame = yuvFrame;
-        
+//        frame = yuvFrame;
+    
 //    }
     
-    frame.width = videoCodecCtx->width;
-    frame.height = videoCodecCtx->height;
+    yuvFrame.width = videoCodecCtx->width;
+    yuvFrame.height = videoCodecCtx->height;
 //    frame.width = 1280;
 //    frame.height = 544;
 //    frame.position = av_frame_get_best_effort_timestamp(avframe) * _videoTimeBase;
@@ -1247,7 +1261,7 @@ static int interrupt_callback(void *ctx);
 //          av_frame_get_pkt_pos(_videoFrame));
 //#endif
     
-    return frame;
+    return yuvFrame;
 }
 //- (KxAudioFrame *) handleAudioFrame
 //{

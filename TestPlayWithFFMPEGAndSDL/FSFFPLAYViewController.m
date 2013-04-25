@@ -461,8 +461,8 @@ static double compute_target_delay(double delay, VideoState *is)
         }
     }
     
-    av_dlog(NULL, "video: delay=%0.3f A-V=%f\n",
-            delay, -diff);
+//    av_dlog(NULL, "video: delay=%0.3f A-V=%f\n",
+//            delay, -diff);
     
     return delay;
 }
