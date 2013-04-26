@@ -1202,27 +1202,34 @@ static int interrupt_callback(void *ctx);
     
     return frame;
 }
-- (KxVideoFrame *)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx{
-    if (!avframe->data[0])
+- (void *)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx andKxVideoFrameYUV:(KxVideoFrameYUV *)vFrameYUV{
+    if (!avframe->data[0] || !avframe->data[1] || !avframe->data[2])
         return nil;
     
 //    KxVideoFrame *frame = nil;
     
 //    if (_videoFrameFormat == KxVideoFrameFormatYUV) {
     
-        KxVideoFrameYUV * yuvFrame = [[KxVideoFrameYUV alloc] init];
-        
-        yuvFrame.luma = copyFrameData(avframe->data[0],
+//        KxVideoFrameYUV * yuvFrame = [[KxVideoFrameYUV alloc] init];
+    
+    [vFrameYUV.luma release];
+    vFrameYUV.luma = nil;
+    [vFrameYUV.chromaB release];
+    vFrameYUV.chromaB = nil;
+    [vFrameYUV.chromaR release];
+    vFrameYUV.chromaR = nil;
+    
+        vFrameYUV.luma = copyFrameData(avframe->data[0],
                                       avframe->linesize[0],
                                       videoCodecCtx->width,
                                       videoCodecCtx->height);
         
-        yuvFrame.chromaB = copyFrameData(avframe->data[1],
+        vFrameYUV.chromaB = copyFrameData(avframe->data[1],
                                          avframe->linesize[1],
                                          videoCodecCtx->width / 2,
                                          videoCodecCtx->height / 2);
         
-        yuvFrame.chromaR = copyFrameData(avframe->data[2],
+        vFrameYUV.chromaR = copyFrameData(avframe->data[2],
                                          avframe->linesize[2],
                                          videoCodecCtx->width / 2,
                                          videoCodecCtx->height / 2);
@@ -1231,8 +1238,8 @@ static int interrupt_callback(void *ctx);
     
 //    }
     
-    yuvFrame.width = videoCodecCtx->width;
-    yuvFrame.height = videoCodecCtx->height;
+    vFrameYUV.width = videoCodecCtx->width;
+    vFrameYUV.height = videoCodecCtx->height;
 //    frame.width = 1280;
 //    frame.height = 544;
 //    frame.position = av_frame_get_best_effort_timestamp(avframe) * _videoTimeBase;
@@ -1261,7 +1268,7 @@ static int interrupt_callback(void *ctx);
 //          av_frame_get_pkt_pos(_videoFrame));
 //#endif
     
-    return yuvFrame;
+//    return yuvFrame;
 }
 //- (KxAudioFrame *) handleAudioFrame
 //{

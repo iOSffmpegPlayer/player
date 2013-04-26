@@ -65,7 +65,7 @@ static AVPacket flush_pkt;
 
 static KxMovieDecoder *kxMoviedecoder;
 
-static KxVideoFrame *kxVideoFrame;
+static KxVideoFrameYUV *kxVideoFrame;
 
 #define FF_ALLOC_EVENT   (SDL_USEREVENT)
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
@@ -497,6 +497,7 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos) {
 
 /* called to display each frame */
 //视频更新
+static FSFFPLAYViewController *fsFFPLAYViewController;
 static void video_refresh(void *opaque)
 {
     NSLog(@"%s  %d", __FUNCTION__, __LINE__);
@@ -605,7 +606,8 @@ static void video_refresh(void *opaque)
             }
             
         display:
-            
+//            [[NSNotificationCenter defaultCenter] postNotificationName:@"showimg" object:nil];
+            [fsFFPLAYViewController showVideoThread];
             pictq_next_picture(is);
         }
     }
@@ -659,6 +661,22 @@ static void alloc_picture(VideoState *is)
 //#if CONFIG_AVFILTER
 //    avfilter_unref_bufferp(&vp->picref);
 //#endif
+    if (!isFrameOk) {
+//        @synchronized (kxVideoFrame) {
+//            isFrameOk = YES;
+//            if (kxVideoFrame) {
+//                [kxVideoFrame release];
+//                kxVideoFrame = nil;
+//            }
+            
+//            if (kxVideoFrame == nil) {
+//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:is->videoFrame andvideoCodecCtx:is->video_st->codec];
+            [kxMoviedecoder handleVieoFrameWithFrame:is->videoFrame andvideoCodecCtx:is->video_st->codec andKxVideoFrameYUV:kxVideoFrame];
+//            }
+            isFrameOk = YES;
+//        }
+    }
+
     
     SDL_LockMutex(is->pictq_mutex);
     vp->allocated = 1;
@@ -668,8 +686,8 @@ static void alloc_picture(VideoState *is)
 
 //判断frame是否准备好
 static BOOL isFrameOk = NO;
-static VideoState *showVideoState;
-static AVFrame *showAvFrame;
+//static VideoState *showVideoState;
+//static AVFrame *showAvFrame;
 
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos)
 {
@@ -719,7 +737,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     
     /* alloc or resize hardware picture buffer */
 //    if (!vp->bmp || vp->reallocate || !vp->allocated ||
-    if ( vp->reallocate || !vp->allocated ||
+    if (!isFrameOk || vp->reallocate || !vp->allocated ||
         vp->width  != src_frame->width ||
         vp->height != src_frame->height) {
         SDL_Event event;
@@ -728,6 +746,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         vp->reallocate = 0;
         vp->width = src_frame->width;
         vp->height = src_frame->height;
+        is->videoFrame = src_frame;
         
         /* the allocation must be done in the main thread to avoid
          locking problems. */
@@ -758,11 +777,11 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //        vp->picref = src_frame->opaque;
 //#endif
 //    SDL_LockMutex(is->pictq_mutex);
-    if (!isFrameOk) {
-        showVideoState = is;
-        showAvFrame = src_frame;
-        isFrameOk = YES;
-    }
+//    if (!isFrameOk) {
+//        showVideoState = is;
+//        showAvFrame = src_frame;
+//        isFrameOk = YES;
+//    }
 
 //    SDL_UnlockMutex(is->pictq_mutex);
         vp->pts = pts;
@@ -1684,6 +1703,7 @@ static int read_thread(void *arg)
     ic = avformat_alloc_context();
     ic->interrupt_callback.callback = decode_interrupt_cb;
     ic->interrupt_callback.opaque = is;
+    ic->max_analyze_duration = 1000000;//修改延迟问题
     err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);
     if (err < 0) {
         print_error(is->filename, err);
@@ -2255,7 +2275,10 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 {
     [super viewDidLoad];
     // Do any additional setup after loading the view from its nib.
+    fsFFPLAYViewController = self;
     
+//    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(showVideoThread) name:@"showimg" object:nil];
+    kxVideoFrame = [[KxVideoFrameYUV alloc] init];
     kxMoviedecoder = [[KxMovieDecoder alloc] init];
     
     UIView *frameView = [self frameView];
@@ -2377,7 +2400,7 @@ const char program_name[] = "ffplay";
 //    [allocImgDisplayLink setFrameInterval:1];
 //    [allocImgDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 
-    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(showVideoThread) userInfo:NULL repeats:YES];
+//    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(showVideoThread) userInfo:NULL repeats:YES];
     
     
     event_loop(is);
@@ -2405,22 +2428,22 @@ const char program_name[] = "ffplay";
     if (isFrameOk) {
         //        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 //        @synchronized (kxVideoFrame) {
-        
-            if (!kxVideoFrame) {
-                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
+    
+//            if (kxVideoFrame) {
+//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
                 [_glView render:kxVideoFrame];
 
-                [kxVideoFrame release];
-                kxVideoFrame = nil;
+//                [kxVideoFrame dealloc];
+//                kxVideoFrame = nil;
                 
                 isFrameOk = NO;
 
-            }
-        
-//        }
-        
+//            }
+    
+        }
+    
         //        [pool release];
-    }
+//    }
 
 //    @synchronized (kxVideoFrame) {
 //        if (kxVideoFrame) {

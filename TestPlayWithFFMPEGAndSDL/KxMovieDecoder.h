@@ -125,7 +125,7 @@ typedef BOOL(^KxMovieDecoderInterruptCallback)();
 
 - (NSArray *) decodeFrames: (CGFloat) minDuration;
 
-- (KxVideoFrame *)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx;
+- (void *)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx andKxVideoFrameYUV:(KxVideoFrameYUV *)vFrameYUV;
 
 @end
 
