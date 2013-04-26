@@ -73,11 +73,13 @@ static KxVideoFrame *kxVideoFrame;
 
 //static SDL_Surface *screen;
 
+//退出程序
 void av_noreturn exit_program(int ret)
 {
     exit(ret);
 }
 
+//存储数据包
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
 {
     AVPacketList *pkt1;
@@ -103,6 +105,7 @@ static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
     return 0;
 }
 
+//推入数据包
 static int packet_queue_put(PacketQueue *q, AVPacket *pkt)
 {
     int ret;
@@ -122,6 +125,7 @@ static int packet_queue_put(PacketQueue *q, AVPacket *pkt)
 }
 
 /* packet queue handling */
+//初始化包数据栈
 static void packet_queue_init(PacketQueue *q)
 {
     memset(q, 0, sizeof(PacketQueue));
@@ -130,6 +134,7 @@ static void packet_queue_init(PacketQueue *q)
     q->abort_request = 1;
 }
 
+//包数据释放
 static void packet_queue_flush(PacketQueue *q)
 {
     AVPacketList *pkt, *pkt1;
@@ -147,6 +152,7 @@ static void packet_queue_flush(PacketQueue *q)
     SDL_UnlockMutex(q->mutex);
 }
 
+//包数据栈清空
 static void packet_queue_destroy(PacketQueue *q)
 {
     packet_queue_flush(q);
@@ -154,6 +160,7 @@ static void packet_queue_destroy(PacketQueue *q)
     SDL_DestroyCond(q->cond);
 }
 
+//
 static void packet_queue_abort(PacketQueue *q)
 {
     SDL_LockMutex(q->mutex);
@@ -165,6 +172,7 @@ static void packet_queue_abort(PacketQueue *q)
     SDL_UnlockMutex(q->mutex);
 }
 
+//包数据栈开启
 static void packet_queue_start(PacketQueue *q)
 {
     SDL_LockMutex(q->mutex);
@@ -174,6 +182,7 @@ static void packet_queue_start(PacketQueue *q)
 }
 
 /* return < 0 if aborted, 0 if no packet and > 0 if packet.  */
+//包栈获取数据
 static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block)
 {
     AVPacketList *pkt1;
@@ -250,45 +259,17 @@ b = v & 0xff;\
 #define BPP 1
 
 
-
+//释放字幕图片
 static void free_subpicture(SubPicture *sp)
 {
     avsubtitle_free(&sp->sub);
 }
 
-static void calculate_display_rect(SDL_Rect *rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, VideoPicture *vp)
-{
-    float aspect_ratio;
-    int width, height, x, y;
-    
-    if (vp->sample_aspect_ratio.num == 0)
-        aspect_ratio = 0;
-    else
-        aspect_ratio = av_q2d(vp->sample_aspect_ratio);
-    
-    if (aspect_ratio <= 0.0)
-        aspect_ratio = 1.0;
-    aspect_ratio *= (float)vp->width / (float)vp->height;
-    
-    /* XXX: we suppose the screen has a 1.0 pixel ratio */
-    height = scr_height;
-    width = ((int)rint(height * aspect_ratio)) & ~1;
-    if (width > scr_width) {
-        width = scr_width;
-        height = ((int)rint(width / aspect_ratio)) & ~1;
-    }
-    x = (scr_width - width) / 2;
-    y = (scr_height - height) / 2;
-    rect->x = scr_xleft + x;
-    rect->y = scr_ytop  + y;
-    rect->w = FFMAX(width,  1);
-    rect->h = FFMAX(height, 1);
-}
-
+//关闭流
 static void stream_close(VideoState *is)
 {
-    VideoPicture *vp;
-    int i;
+//    VideoPicture *vp;
+//    int i;
     /* XXX: use a special url_shutdown call to abort parse cleanly */
     is->abort_request = 1;
     SDL_WaitThread(is->read_tid, NULL);
@@ -298,16 +279,16 @@ static void stream_close(VideoState *is)
     packet_queue_destroy(&is->subtitleq);
     
     /* free all pictures */
-    for (i = 0; i < VIDEO_PICTURE_QUEUE_SIZE; i++) {
-        vp = &is->pictq[i];
-//#if CONFIG_AVFILTER
-//        avfilter_unref_bufferp(&vp->picref);
-//#endif
-        if (vp->bmp) {
-            SDL_FreeYUVOverlay(vp->bmp);
-            vp->bmp = NULL;
-        }
-    }
+//    for (i = 0; i < VIDEO_PICTURE_QUEUE_SIZE; i++) {
+//        vp = &is->pictq[i];
+////#if CONFIG_AVFILTER
+////        avfilter_unref_bufferp(&vp->picref);
+////#endif
+//        if (vp->bmp) {
+//            SDL_FreeYUVOverlay(vp->bmp);
+//            vp->bmp = NULL;
+//        }
+//    }
     SDL_DestroyMutex(is->pictq_mutex);
     SDL_DestroyCond(is->pictq_cond);
     SDL_DestroyMutex(is->subpq_mutex);
@@ -320,6 +301,7 @@ static void stream_close(VideoState *is)
     av_free(is);
 }
 
+//退出程序
 static void do_exit(VideoState *is)
 {
     NSLog(@"退出程序");
@@ -340,12 +322,12 @@ static void do_exit(VideoState *is)
     exit(0);
 }
 
-static void sigterm_handler(int sig)
-{
-    exit(123);
-}
+//static void sigterm_handler(int sig)
+//{
+//    exit(123);
+//}
 
-
+//刷新线程
 static int refresh_thread(void *opaque)
 {
     VideoState *is= opaque;
@@ -364,6 +346,7 @@ static int refresh_thread(void *opaque)
 }
 
 /* get the current audio clock value */
+//获取音频时钟
 static double get_audio_clock(VideoState *is)
 {
     if (is->paused) {
@@ -374,6 +357,7 @@ static double get_audio_clock(VideoState *is)
 }
 
 /* get the current video clock value */
+//获取视频时钟
 static double get_video_clock(VideoState *is)
 {
     if (is->paused) {
@@ -384,6 +368,7 @@ static double get_video_clock(VideoState *is)
 }
 
 /* get the current external clock value */
+//获取外部时钟
 static double get_external_clock(VideoState *is)
 {
     int64_t ti;
@@ -392,6 +377,7 @@ static double get_external_clock(VideoState *is)
 }
 
 /* get the current master clock value */
+//获取默认时钟
 static double get_master_clock(VideoState *is)
 {
     double val;
@@ -413,6 +399,7 @@ static double get_master_clock(VideoState *is)
 }
 
 /* seek in the stream */
+//跳
 static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int seek_by_bytes)
 {
     if (!is->seek_req) {
@@ -426,6 +413,7 @@ static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int seek_by_by
 }
 
 /* pause or resume the video */
+//停止或继续视频
 static void stream_toggle_pause(VideoState *is)
 {
     if (is->paused) {
@@ -438,6 +426,7 @@ static void stream_toggle_pause(VideoState *is)
     is->paused = !is->paused;
 }
 
+//计算延迟
 static double compute_target_delay(double delay, VideoState *is)
 {
     double sync_threshold, diff;
@@ -467,6 +456,7 @@ static double compute_target_delay(double delay, VideoState *is)
     return delay;
 }
 
+//下一张图片
 static void pictq_next_picture(VideoState *is) {
     /* update queue size and signal for next picture */
     if (++is->pictq_rindex == VIDEO_PICTURE_QUEUE_SIZE)
@@ -478,6 +468,7 @@ static void pictq_next_picture(VideoState *is) {
     SDL_UnlockMutex(is->pictq_mutex);
 }
 
+//前一个图片
 static void pictq_prev_picture(VideoState *is) {
     VideoPicture *prevvp;
     /* update queue size and signal for the previous picture */
@@ -494,6 +485,7 @@ static void pictq_prev_picture(VideoState *is) {
     }
 }
 
+//更新视频pts
 static void update_video_pts(VideoState *is, double pts, int64_t pos) {
     double time = av_gettime() / 1000000.0;
     /* update current video pts */
@@ -504,6 +496,7 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos) {
 }
 
 /* called to display each frame */
+//视频更新
 static void video_refresh(void *opaque)
 {
     NSLog(@"%s  %d", __FUNCTION__, __LINE__);
@@ -655,6 +648,7 @@ static void video_refresh(void *opaque)
 
 /* allocate a picture (needs to do that in main thread to avoid
  potential locking problems */
+//初始化图片
 static void alloc_picture(VideoState *is)
 {
     VideoPicture *vp;
@@ -785,6 +779,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     return 0;
 }
 
+//获取视频帧
 static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacket *pkt)
 {
     SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
@@ -1420,6 +1415,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     is->audio_current_pts_drift = is->audio_current_pts - audio_callback_time / 1000000.0;
 }
 
+//音频打开
 static int audio_open(void *opaque, int64_t wanted_channel_layout, int wanted_nb_channels, int wanted_sample_rate, struct AudioParams *audio_hw_params)
 {
     SDL_AudioSpec wanted_spec, spec;
@@ -2296,8 +2292,8 @@ const char program_name[] = "ffplay";
     VideoState *is;
     char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
     
-    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
-//    input_filename = "udp://@192.168.1.102:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+//    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
+    input_filename = "udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 
 
     display_disable = NO;
@@ -2318,8 +2314,8 @@ const char program_name[] = "ffplay";
     
     init_opts();
     
-    signal(SIGINT , sigterm_handler); /* Interrupt (ANSI).    */
-    signal(SIGTERM, sigterm_handler); /* Termination (ANSI).  */
+//    signal(SIGINT , sigterm_handler); /* Interrupt (ANSI).    */
+//    signal(SIGTERM, sigterm_handler); /* Termination (ANSI).  */
     
     if (!input_filename) {
 //        show_usage();
