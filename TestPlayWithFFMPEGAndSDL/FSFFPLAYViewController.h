@@ -30,14 +30,6 @@
 #include "libavcodec/avfft.h"
 #include "libswresample/swresample.h"
 
-#if CONFIG_AVFILTER
-# include "libavfilter/avcodec.h"
-# include "libavfilter/avfilter.h"
-# include "libavfilter/avfiltergraph.h"
-# include "libavfilter/buffersink.h"
-# include "libavfilter/buffersrc.h"
-#endif
-
 #include <SDL.h>
 #include <SDL_thread.h>
 
@@ -50,7 +42,6 @@
 
 #import <QuartzCore/QuartzCore.h>
 
-//const int program_birth_year = 2003;
 
 #define MAX_QUEUE_SIZE (15 * 1024 * 1024)
 #define MIN_FRAMES 5
@@ -230,31 +221,61 @@ typedef struct VideoState {
     SDL_cond *continue_read_thread;
 } VideoState;
 
+//播放错误信息提示
+typedef enum {
+    VideoPlayErrorTypeInput,
+    VideoPlayErrorTypeSDLError,
+    VideoPlayErrorTypeInitError
+} VideoPlayErrorType;
+
+//播放状态
+typedef enum {
+    VideoPlayStatePlaying,
+    VideoPlayStatePause,
+    VideoPlayStateStop
+} VideoPlayState;
 
 
-
-
+//播放器
 @interface FSFFPLAYViewController : UIViewController {
-    IBOutlet UIImageView *showImageView;
-    
+    //显示视频的view
     KxMovieGLView       *_glView;
+    
+    IBOutlet UIView *showVideoView;
+    IBOutlet UIView *controlView;
+    
+    VideoPlayState videoPlayState;
 }
 
+
+//开始播放
 - (void)startPlay;
-static NSData * copyFrameData(UInt8 *src, int linesize, int width, int height);
 
-static void imageFromAVPicture(AVPicture pict, int width, int height);
-
-//- (void)allocImageThread;
+- (UIView *) frameView;
 
 - (void)showVideoThread;
 
+//播放控制
+- (void)start;
+
+- (void)pause;
+
+- (void)stop;
+
+//停止播放原因
+- (void)stopWithError:(VideoPlayErrorType)errotType andError:(NSError *)error;
+
+- (void)seekWithTime:(int)time;
+
+//控件操作
+- (IBAction)playAction:(id)sender;
+
+- (IBAction)pausePlayAction:(id)sender;
+
+- (IBAction)stopPlayAction:(id)sender;
+
 #pragma mark -
 #pragma mark 
-
-///
-
-///
 
 void av_noreturn exit_program(int ret);
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt);
@@ -287,10 +308,6 @@ static void video_refresh(void *opaque);
 static void alloc_picture(VideoState *is);
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos);
 static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacket *pkt);
-static int configure_filtergraph(AVFilterGraph *graph, const char *filtergraph,
-                                 AVFilterContext *source_ctx, AVFilterContext *sink_ctx);
-static int configure_video_filters(AVFilterGraph *graph, VideoState *is, const char *vfilters);
-
 static int video_thread(void *arg);
 static int subtitle_thread(void *arg);
 static void update_sample_display(VideoState *is, short *samples, int samples_size);

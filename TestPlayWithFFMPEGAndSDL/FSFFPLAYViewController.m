@@ -14,9 +14,7 @@
 /* options specified by the user */
 static AVInputFormat *file_iformat;
 static const char *input_filename;
-//static const char *window_title;
-//static int fs_screen_width;
-//static int fs_screen_height;
+
 static int screen_width  = 0;
 static int screen_height = 0;
 static int audio_disable;
@@ -53,12 +51,7 @@ static const char *audio_codec_name;
 static const char *subtitle_codec_name;
 static const char *video_codec_name;
 static int rdftspeed = 20;
-//#if CONFIG_AVFILTER
-//static char *vfilters = NULL;
-//#endif
 
-/* current context */
-//static int is_full_screen;
 static int64_t audio_callback_time;
 
 static AVPacket flush_pkt;
@@ -66,6 +59,8 @@ static AVPacket flush_pkt;
 static KxMovieDecoder *kxMoviedecoder;
 
 static KxVideoFrameYUV *kxVideoFrame;
+
+static VideoState *videoState;
 
 #define FF_ALLOC_EVENT   (SDL_USEREVENT)
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
@@ -268,8 +263,6 @@ static void free_subpicture(SubPicture *sp)
 //关闭流
 static void stream_close(VideoState *is)
 {
-//    VideoPicture *vp;
-//    int i;
     /* XXX: use a special url_shutdown call to abort parse cleanly */
     is->abort_request = 1;
     SDL_WaitThread(is->read_tid, NULL);
@@ -277,49 +270,28 @@ static void stream_close(VideoState *is)
     packet_queue_destroy(&is->videoq);
     packet_queue_destroy(&is->audioq);
     packet_queue_destroy(&is->subtitleq);
-    
-    /* free all pictures */
-//    for (i = 0; i < VIDEO_PICTURE_QUEUE_SIZE; i++) {
-//        vp = &is->pictq[i];
-////#if CONFIG_AVFILTER
-////        avfilter_unref_bufferp(&vp->picref);
-////#endif
-//        if (vp->bmp) {
-//            SDL_FreeYUVOverlay(vp->bmp);
-//            vp->bmp = NULL;
-//        }
-//    }
+
     SDL_DestroyMutex(is->pictq_mutex);
     SDL_DestroyCond(is->pictq_cond);
     SDL_DestroyMutex(is->subpq_mutex);
     SDL_DestroyCond(is->subpq_cond);
     SDL_DestroyCond(is->continue_read_thread);
-//#if !CONFIG_AVFILTER
-//    if (is->img_convert_ctx)
-//        sws_freeContext(is->img_convert_ctx);
-//#endif
+
     av_free(is);
 }
 
 //退出程序
 static void do_exit(VideoState *is)
 {
-    NSLog(@"退出程序");
     if (is) {
         stream_close(is);
     }
     av_lockmgr_register(NULL);
-    uninit_opts();
-//#if CONFIG_AVFILTER
-//    avfilter_uninit();
-//    av_freep(&vfilters);
-//#endif
     avformat_network_deinit();
     if (show_status)
         printf("\n");
     SDL_Quit();
-    av_log(NULL, AV_LOG_QUIET, "%s", "");
-    exit(0);
+    
 }
 
 //static void sigterm_handler(int sig)
@@ -502,6 +474,10 @@ static FSFFPLAYViewController *fsFFPLAYViewController;
 static void video_refresh(void *opaque)
 {
 
+    if (!opaque) {
+        return;
+    }
+    
     VideoState *is = opaque;
     VideoPicture *vp;
     double time;
@@ -607,7 +583,11 @@ static void video_refresh(void *opaque)
             }
             
         display:
-            [fsFFPLAYViewController showVideoThread];
+            /* display picture */
+
+            if (!display_disable)
+                [fsFFPLAYViewController showVideoThread];
+            
             pictq_next_picture(is);
         }
     }
@@ -676,6 +656,11 @@ static BOOL isFrameOk = NO;
 
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos)
 {
+    
+    if (!is) {
+        return -1;
+    }
+    
     VideoPicture *vp;
     double frame_delay, pts = pts1;
     
@@ -799,9 +784,10 @@ static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacke
         
         return 0;
     }
-    
-    if(avcodec_decode_video2(is->video_st->codec, frame, &got_picture, pkt) < 0)
+    if(avcodec_decode_video2(is->video_st->codec, frame, &got_picture, pkt) < 0) {
         return 0;
+    } else {
+    }
     
     if (got_picture) {
         int ret = 1;
@@ -1853,14 +1839,23 @@ static void step_to_next_frame(VideoState *is)
 //}
 
 /* handle an event sent by the GUI */
+
+static bool eventStop = TRUE;
 static void event_loop(VideoState *cur_stream)
 {
+
     SDL_Event event;
     double incr, pos, frac;
     
     for (;;) {
+        
         double x;
         SDL_WaitEvent(&event);
+        
+        if (eventStop) {
+            break;
+        }
+        
         switch (event.type) {
             case SDL_KEYDOWN:
                 if (exit_on_keydown) {
@@ -2056,11 +2051,13 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     frameView.contentMode = UIViewContentModeScaleAspectFit;
     frameView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleBottomMargin;
     
-    [self.view addSubview:frameView];
+    [showVideoView addSubview:frameView];
+    
+    videoState = VideoPlayStateStop;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    [self startPlay];
+    //[self startPlay];
 
 }
 
@@ -2078,7 +2075,11 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 }
 
 - (void)startPlay {
-        
+    
+    if (videoState == VideoPlayStatePlaying) {
+        return;
+    }
+    
     int flags;
     VideoState *is;
     char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
@@ -2086,8 +2087,6 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
 //    input_filename = "udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
 //    input_filename = "udp://@192.168.1.101:8905?fifo_size=100000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
-
-
 
     display_disable = NO;
 
@@ -2099,22 +2098,13 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 #if CONFIG_AVDEVICE
     avdevice_register_all();
 #endif
-//#if CONFIG_AVFILTER
-//    avfilter_register_all();
-//#endif
+
     av_register_all();
     avformat_network_init();
-    
-    init_opts();
-    
-//    signal(SIGINT , sigterm_handler); /* Interrupt (ANSI).    */
-//    signal(SIGTERM, sigterm_handler); /* Termination (ANSI).  */
-    
+        
     if (!input_filename) {
-//        show_usage();
-//        fprintf(stderr, "An input file must be specified\n");
-////        fprintf(stderr, "Use -h to get full help or, even better, run 'man %s'\n", program_name);
-//        exit(1);
+        //路径错误
+        [fsFFPLAYViewController stopWithError:VideoPlayErrorTypeInput andError:nil];
     }
 
     if (display_disable) {
@@ -2133,9 +2123,11 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     if (SDL_Init (flags)) {
         fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
         fprintf(stderr, "(Did you set the DISPLAY variable?)\n");
-        exit(1);
-    }
+        //exit(1);
+        //SDL错误
+        [fsFFPLAYViewController stopWithError:VideoPlayErrorTypeSDLError andError:nil];
 
+    }
     
     SDL_EventState(SDL_ACTIVEEVENT, SDL_IGNORE);
     SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
@@ -2152,9 +2144,14 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     is = stream_open(input_filename, file_iformat);
     if (!is) {
         fprintf(stderr, "Failed to initialize VideoState!\n");
-        do_exit(NULL);
+        //do_exit(NULL);
+        [fsFFPLAYViewController stopWithError:VideoPlayErrorTypeInitError andError:nil];
+
     }
     
+    videoState = is;
+    videoPlayState = VideoPlayStatePlaying;
+    eventStop = FALSE;
     event_loop(is);
 }
 - (void)showVideoThread {
@@ -2174,6 +2171,77 @@ static int lockmgr(void **mtx, enum AVLockOp op)
         _glView = [[KxMovieGLView alloc] initWithFrame:self.view.bounds decoder:nil];
     }
     return _glView;
+}
+
+- (void)start {
+    
+}
+
+- (void)pause {
+
+    videoPlayState = VideoPlayStatePause;
+    
+    toggle_pause(videoState);
+    
+}
+
+- (void)stop {
+    
+    videoPlayState = VideoPlayStateStop;
+    
+    eventStop = TRUE;
+
+    do_exit(videoState);
+    
+}
+
+- (void)stopWithError:(VideoPlayErrorType)errotType andError:(NSError *)error {
+    //先停止
+    [self stop];
+    
+    //然后说明原因
+    NSLog(@"stop error:%@", [error description]);
+    
+    switch (errotType) {
+        case VideoPlayErrorTypeInput:
+        {
+            
+        }
+            break;
+        case VideoPlayErrorTypeSDLError:
+        {
+            
+        }
+            break;
+        case VideoPlayErrorTypeInitError:
+        {
+            
+        }
+            break;
+            
+        default:
+            break;
+    }
+    
+    
+}
+
+- (void)seekWithTime:(int)time {
+    
+}
+
+#pragma mark -
+#pragma mark ibaction methods
+- (IBAction)playAction:(id)sender {
+    [self startPlay];
+}
+
+- (IBAction)pausePlayAction:(id)sender {
+    [self pause];
+}
+
+- (IBAction)stopPlayAction:(id)sender {
+    [self stop];
 }
 
 @end
