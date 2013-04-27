@@ -498,9 +498,10 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos) {
 /* called to display each frame */
 //视频更新
 static FSFFPLAYViewController *fsFFPLAYViewController;
+
 static void video_refresh(void *opaque)
 {
-    NSLog(@"%s  %d", __FUNCTION__, __LINE__);
+
     VideoState *is = opaque;
     VideoPicture *vp;
     double time;
@@ -606,7 +607,6 @@ static void video_refresh(void *opaque)
             }
             
         display:
-//            [[NSNotificationCenter defaultCenter] postNotificationName:@"showimg" object:nil];
             [fsFFPLAYViewController showVideoThread];
             pictq_next_picture(is);
         }
@@ -657,26 +657,13 @@ static void alloc_picture(VideoState *is)
     
     vp = &is->pictq[is->pictq_windex];
 
-    
-//#if CONFIG_AVFILTER
-//    avfilter_unref_bufferp(&vp->picref);
-//#endif
     if (!isFrameOk) {
-//        @synchronized (kxVideoFrame) {
-//            isFrameOk = YES;
-//            if (kxVideoFrame) {
-//                [kxVideoFrame release];
-//                kxVideoFrame = nil;
-//            }
-            
-//            if (kxVideoFrame == nil) {
-//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:is->videoFrame andvideoCodecCtx:is->video_st->codec];
-            [kxMoviedecoder handleVieoFrameWithFrame:is->videoFrame andvideoCodecCtx:is->video_st->codec andKxVideoFrameYUV:kxVideoFrame];
-//            }
-            isFrameOk = YES;
-//        }
-    }
 
+        [kxMoviedecoder handleVieoFrameWithFrame:is->videoFrame andvideoCodecCtx:is->video_st->codec andKxVideoFrameYUV:kxVideoFrame];
+
+        isFrameOk = YES;
+
+    }
     
     SDL_LockMutex(is->pictq_mutex);
     vp->allocated = 1;
@@ -686,8 +673,6 @@ static void alloc_picture(VideoState *is)
 
 //判断frame是否准备好
 static BOOL isFrameOk = NO;
-//static VideoState *showVideoState;
-//static AVFrame *showAvFrame;
 
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_t pos)
 {
@@ -728,12 +713,8 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         return -1;
     
     vp = &is->pictq[is->pictq_windex];
-    
-//#if CONFIG_AVFILTER
-//    vp->sample_aspect_ratio = ((AVFilterBufferRef *)src_frame->opaque)->video->sample_aspect_ratio;
-//#else
+
     vp->sample_aspect_ratio = av_guess_sample_aspect_ratio(is->ic, is->video_st, src_frame);
-//#endif
     
     /* alloc or resize hardware picture buffer */
 //    if (!vp->bmp || vp->reallocate || !vp->allocated ||
@@ -771,19 +752,8 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         if (is->videoq.abort_request)
             return -1;
     }
-
-//#if CONFIG_AVFILTER
-//        avfilter_unref_bufferp(&vp->picref);
-//        vp->picref = src_frame->opaque;
-//#endif
-//    SDL_LockMutex(is->pictq_mutex);
-//    if (!isFrameOk) {
-//        showVideoState = is;
-//        showAvFrame = src_frame;
-//        isFrameOk = YES;
-//    }
-
-//    SDL_UnlockMutex(is->pictq_mutex);
+    
+    if (isFrameOk) {
         vp->pts = pts;
         vp->pos = pos;
         vp->skip = 0;
@@ -794,6 +764,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         SDL_LockMutex(is->pictq_mutex);
         is->pictq_size++;
         SDL_UnlockMutex(is->pictq_mutex);
+    }
 
     return 0;
 }
@@ -871,135 +842,16 @@ static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacke
     return 0;
 }
 
-//#if CONFIG_AVFILTER
-//static int configure_filtergraph(AVFilterGraph *graph, const char *filtergraph,
-//                                 AVFilterContext *source_ctx, AVFilterContext *sink_ctx)
-//{
-//    int ret;
-//    AVFilterInOut *outputs = NULL, *inputs = NULL;
-//    
-//    if (filtergraph) {
-//        outputs = avfilter_inout_alloc();
-//        inputs  = avfilter_inout_alloc();
-//        if (!outputs || !inputs) {
-//            ret = AVERROR(ENOMEM);
-//            goto fail;
-//        }
-//        
-//        outputs->name       = av_strdup("in");
-//        outputs->filter_ctx = source_ctx;
-//        outputs->pad_idx    = 0;
-//        outputs->next       = NULL;
-//        
-//        inputs->name        = av_strdup("out");
-//        inputs->filter_ctx  = sink_ctx;
-//        inputs->pad_idx     = 0;
-//        inputs->next        = NULL;
-//        
-//        if ((ret = avfilter_graph_parse(graph, filtergraph, &inputs, &outputs, NULL)) < 0)
-//            goto fail;
-//    } else {
-//        if ((ret = avfilter_link(source_ctx, 0, sink_ctx, 0)) < 0)
-//            goto fail;
-//    }
-//    
-//    return avfilter_graph_config(graph, NULL);
-//fail:
-//    avfilter_inout_free(&outputs);
-//    avfilter_inout_free(&inputs);
-//    return ret;
-//}
-//
-//static int configure_video_filters(AVFilterGraph *graph, VideoState *is, const char *vfilters)
-//{
-//    static const enum PixelFormat pix_fmts[] = { PIX_FMT_YUV420P, PIX_FMT_NONE };
-//    char sws_flags_str[128];
-//    char buffersrc_args[256];
-//    int ret;
-//    AVBufferSinkParams *buffersink_params = av_buffersink_params_alloc();
-//    AVFilterContext *filt_src = NULL, *filt_out = NULL, *filt_format, *filt_crop;
-//    AVCodecContext *codec = is->video_st->codec;
-//    
-//    snprintf(sws_flags_str, sizeof(sws_flags_str), "flags=%d", sws_flags);
-//    graph->scale_sws_opts = av_strdup(sws_flags_str);
-//    
-//    snprintf(buffersrc_args, sizeof(buffersrc_args),
-//             "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-//             codec->width, codec->height, codec->pix_fmt,
-//             is->video_st->time_base.num, is->video_st->time_base.den,
-//             codec->sample_aspect_ratio.num, codec->sample_aspect_ratio.den);
-//    
-//    if ((ret = avfilter_graph_create_filter(&filt_src,
-//                                            avfilter_get_by_name("buffer"),
-//                                            "ffplay_buffer", buffersrc_args, NULL,
-//                                            graph)) < 0)
-//        return ret;
-//    
-//    buffersink_params->pixel_fmts = pix_fmts;
-//    ret = avfilter_graph_create_filter(&filt_out,
-//                                       avfilter_get_by_name("ffbuffersink"),
-//                                       "ffplay_buffersink", NULL, buffersink_params, graph);
-//    av_freep(&buffersink_params);
-//    if (ret < 0)
-//        return ret;
-//    
-//    /* SDL YUV code is not handling odd width/height for some driver
-//     * combinations, therefore we crop the picture to an even width/height. */
-//    if ((ret = avfilter_graph_create_filter(&filt_crop,
-//                                            avfilter_get_by_name("crop"),
-//                                            "ffplay_crop", "floor(in_w/2)*2:floor(in_h/2)*2", NULL, graph)) < 0)
-//        return ret;
-//    if ((ret = avfilter_graph_create_filter(&filt_format,
-//                                            avfilter_get_by_name("format"),
-//                                            "format", "yuv420p", NULL, graph)) < 0)
-//        return ret;
-//    if ((ret = avfilter_link(filt_crop, 0, filt_format, 0)) < 0)
-//        return ret;
-//    if ((ret = avfilter_link(filt_format, 0, filt_out, 0)) < 0)
-//        return ret;
-//    
-//    if ((ret = configure_filtergraph(graph, vfilters, filt_src, filt_crop)) < 0)
-//        return ret;
-//    
-//    is->in_video_filter  = filt_src;
-//    is->out_video_filter = filt_out;
-//    
-//    return ret;
-//}
-//
-//#endif  /* CONFIG_AVFILTER */
-
 static int video_thread(void *arg)
 {
-    
     AVPacket pkt = { 0 };
     VideoState *is = arg;
     AVFrame *frame = avcodec_alloc_frame();
-    int64_t pts_int = AV_NOPTS_VALUE, pos = -1;
+    int64_t pts_int = AV_NOPTS_VALUE;
     double pts;
     int ret;
     
-//#if CONFIG_AVFILTER
-//    AVCodecContext *codec = is->video_st->codec;
-//    AVFilterGraph *graph = avfilter_graph_alloc();
-//    AVFilterContext *filt_out = NULL, *filt_in = NULL;
-//    int last_w = 0;
-//    int last_h = 0;
-//    enum PixelFormat last_format = -2;
-//    
-//    if (codec->codec->capabilities & CODEC_CAP_DR1) {
-//        is->use_dr1 = 1;
-//        codec->get_buffer     = codec_get_buffer;
-//        codec->release_buffer = codec_release_buffer;
-//        codec->opaque         = &is->buffer_pool;
-//    }
-//#endif
-    
     for (;;) {
-//#if CONFIG_AVFILTER
-//        AVFilterBufferRef *picref;
-//        AVRational tb;
-//#endif
 
         while (is->paused && !is->videoq.abort_request)
             SDL_Delay(10);
@@ -1015,87 +867,9 @@ static int video_thread(void *arg)
             continue;
         }
         
-//#if CONFIG_AVFILTER
-//        if (   last_w != is->video_st->codec->width
-//            || last_h != is->video_st->codec->height
-//            || last_format != is->video_st->codec->pix_fmt) {
-//            av_log(NULL, AV_LOG_INFO, "Frame changed from size:%dx%d to size:%dx%d\n",
-//                   last_w, last_h, is->video_st->codec->width, is->video_st->codec->height);
-//            avfilter_graph_free(&graph);
-//            graph = avfilter_graph_alloc();
-//            if ((ret = configure_video_filters(graph, is, vfilters)) < 0) {
-//                SDL_Event event;
-//                event.type = FF_QUIT_EVENT;
-//                event.user.data1 = is;
-//                SDL_PushEvent(&event);
-//                av_free_packet(&pkt);
-//                goto the_end;
-//            }
-//            filt_in  = is->in_video_filter;
-//            filt_out = is->out_video_filter;
-//            last_w = is->video_st->codec->width;
-//            last_h = is->video_st->codec->height;
-//            last_format = is->video_st->codec->pix_fmt;
-//        }
-//        
-//        frame->pts = pts_int;
-//        frame->sample_aspect_ratio = av_guess_sample_aspect_ratio(is->ic, is->video_st, frame);
-//        if (is->use_dr1 && frame->opaque) {
-//            FrameBuffer      *buf = frame->opaque;
-//            AVFilterBufferRef *fb = avfilter_get_video_buffer_ref_from_arrays(
-//                                                                              frame->data, frame->linesize,
-//                                                                              AV_PERM_READ | AV_PERM_PRESERVE,
-//                                                                              frame->width, frame->height,
-//                                                                              frame->format);
-//            
-//            avfilter_copy_frame_props(fb, frame);
-//            fb->buf->priv           = buf;
-//            fb->buf->free           = filter_release_buffer;
-//            
-//            buf->refcount++;
-//            av_buffersrc_add_ref(filt_in, fb, AV_BUFFERSRC_FLAG_NO_COPY);
-//            
-//        } else
-//            av_buffersrc_write_frame(filt_in, frame);
-//        
-//        av_free_packet(&pkt);
-//        
-//        while (ret >= 0) {
-//            is->frame_last_returned_time = av_gettime() / 1000000.0;
-//            
-//            ret = av_buffersink_get_buffer_ref(filt_out, &picref, 0);
-//            if (ret < 0) {
-//                ret = 0;
-//                break;
-//            }
-//            
-//            is->frame_last_filter_delay = av_gettime() / 1000000.0 - is->frame_last_returned_time;
-//            if (fabs(is->frame_last_filter_delay) > AV_NOSYNC_THRESHOLD / 10.0)
-//                is->frame_last_filter_delay = 0;
-//            
-//            avfilter_copy_buf_props(frame, picref);
-//            
-//            pts_int = picref->pts;
-//            tb      = filt_out->inputs[0]->time_base;
-//            pos     = picref->pos;
-//            frame->opaque = picref;
-//            
-//            if (av_cmp_q(tb, is->video_st->time_base)) {
-//                av_unused int64_t pts1 = pts_int;
-//                pts_int = av_rescale_q(pts_int, tb, is->video_st->time_base);
-//                av_dlog(NULL, "video_thread(): "
-//                        "tb:%d/%d pts:%"PRId64" -> tb:%d/%d pts:%"PRId64"\n",
-//                        tb.num, tb.den, pts1,
-//                        is->video_st->time_base.num, is->video_st->time_base.den, pts_int);
-//            }
-//            pts = pts_int * av_q2d(is->video_st->time_base);
-//            ret = queue_picture(is, frame, pts, pos);
-//        }
-//#else
         pts = pts_int * av_q2d(is->video_st->time_base);
         ret = queue_picture(is, frame, pts, pkt.pos);
-//#endif
-        
+
         if (ret < 0)
             goto the_end;
         
@@ -1104,9 +878,7 @@ static int video_thread(void *arg)
     }
 the_end:
     avcodec_flush_buffers(is->video_st->codec);
-//#if CONFIG_AVFILTER
-//    avfilter_graph_free(&graph);
-//#endif
+
     av_free_packet(&pkt);
     avcodec_free_frame(&frame);
     return 0;
@@ -1578,11 +1350,11 @@ static int stream_component_open(VideoState *is, int stream_index)
             is->video_tid = SDL_CreateThread(video_thread,"video_tid",  is);
             break;
         case AVMEDIA_TYPE_SUBTITLE:
-//            is->subtitle_stream = stream_index;
-//            is->subtitle_st = ic->streams[stream_index];
-//            packet_queue_start(&is->subtitleq);
-//            
-//            is->subtitle_tid = SDL_CreateThread(subtitle_thread,"subtitle_tid",  is);
+            is->subtitle_stream = stream_index;
+            is->subtitle_st = ic->streams[stream_index];
+            packet_queue_start(&is->subtitleq);
+            
+            is->subtitle_tid = SDL_CreateThread(subtitle_thread,"subtitle_tid",  is);
             break;
         default:
             break;
@@ -1653,9 +1425,7 @@ static void stream_component_close(VideoState *is, int stream_index)
     
     ic->streams[stream_index]->discard = AVDISCARD_ALL;
     avcodec_close(avctx);
-//#if CONFIG_AVFILTER
-//    free_buffer_pool(&is->buffer_pool);
-//#endif
+
     switch (avctx->codec_type) {
         case AVMEDIA_TYPE_AUDIO:
             is->audio_st = NULL;
@@ -1704,6 +1474,7 @@ static int read_thread(void *arg)
     ic->interrupt_callback.callback = decode_interrupt_cb;
     ic->interrupt_callback.opaque = is;
     ic->max_analyze_duration = 1000000;//修改延迟问题
+        
     err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);
     if (err < 0) {
         print_error(is->filename, err);
@@ -1716,14 +1487,15 @@ static int read_thread(void *arg)
         goto fail;
     }
     is->ic = ic;
-    
+
     if (genpts)
         ic->flags |= AVFMT_FLAG_GENPTS;
     
     opts = setup_find_stream_info_opts(ic, codec_opts);
     orig_nb_streams = ic->nb_streams;
-    
+
     err = avformat_find_stream_info(ic, opts);
+
     if (err < 0) {
         fprintf(stderr, "%s: could not find codec parameters\n", is->filename);
         ret = -1;
@@ -2277,7 +2049,6 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     // Do any additional setup after loading the view from its nib.
     fsFFPLAYViewController = self;
     
-//    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(showVideoThread) name:@"showimg" object:nil];
     kxVideoFrame = [[KxVideoFrameYUV alloc] init];
     kxMoviedecoder = [[KxMovieDecoder alloc] init];
     
@@ -2306,17 +2077,16 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 	return YES;
 }
 
-const int program_birth_year = 2003;
-const char program_name[] = "ffplay";
-
 - (void)startPlay {
         
     int flags;
     VideoState *is;
     char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
     
-//    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
-    input_filename = "udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+    input_filename = [[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"] UTF8String];
+//    input_filename = "udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+//    input_filename = "udp://@192.168.1.101:8905?fifo_size=100000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400";
+
 
 
     display_disable = NO;
@@ -2365,14 +2135,7 @@ const char program_name[] = "ffplay";
         fprintf(stderr, "(Did you set the DISPLAY variable?)\n");
         exit(1);
     }
-    
-    if (!display_disable) {
-#if HAVE_SDL_VIDEO_SIZE
-        const SDL_VideoInfo *vi = SDL_GetVideoInfo();
-        fs_screen_width = vi->current_w;
-        fs_screen_height = vi->current_h;
-#endif
-    }
+
     
     SDL_EventState(SDL_ACTIVEEVENT, SDL_IGNORE);
     SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
@@ -2391,68 +2154,18 @@ const char program_name[] = "ffplay";
         fprintf(stderr, "Failed to initialize VideoState!\n");
         do_exit(NULL);
     }
-
-//    [self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
-    //[self performSelectorInBackground:@selector(showVideoThread) withObject:nil];
-//    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(allocImageThread) userInfo:NULL repeats:YES];
-    
-//    CADisplayLink *allocImgDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(allocImageThread)];
-//    [allocImgDisplayLink setFrameInterval:1];
-//    [allocImgDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
-
-//    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(showVideoThread) userInfo:NULL repeats:YES];
-    
     
     event_loop(is);
 }
-
-//- (void)allocImageThread {
-//    if (isFrameOk) {
-////        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-////        @synchronized (kxVideoFrame) {
-//        
-//            if (!kxVideoFrame) {
-//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
-//                isFrameOk = NO;
-//
-//            }
-//            
-////        }
-//
-////        [pool release];
-//    }
-//}
-
 - (void)showVideoThread {
     
     if (isFrameOk) {
-        //        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-//        @synchronized (kxVideoFrame) {
+
+        [_glView render:kxVideoFrame];
+        
+        isFrameOk = NO;
     
-//            if (kxVideoFrame) {
-//                kxVideoFrame = [kxMoviedecoder handleVieoFrameWithFrame:showAvFrame andvideoCodecCtx:showVideoState->video_st->codec];
-                [_glView render:kxVideoFrame];
-
-//                [kxVideoFrame dealloc];
-//                kxVideoFrame = nil;
-                
-                isFrameOk = NO;
-
-//            }
-    
-        }
-    
-        //        [pool release];
-//    }
-
-//    @synchronized (kxVideoFrame) {
-//        if (kxVideoFrame) {
-//            
-//
-//            
-//        }
-//    }
-
+    }
 
 }
 - (UIView *) frameView

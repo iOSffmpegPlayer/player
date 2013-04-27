@@ -74,9 +74,6 @@
 /* TODO: We assume that a decoded and resampled frame fits into this buffer */
 #define SAMPLE_ARRAY_SIZE (8 * 65536)
 
-//static int sws_flags = SWS_BICUBIC;
-
-
 typedef struct PacketQueue {
     AVPacketList *first_pkt, *last_pkt;
     int nb_packets;
@@ -85,8 +82,6 @@ typedef struct PacketQueue {
     SDL_mutex *mutex;
     SDL_cond *cond;
 } PacketQueue;
-
-
 
 #define VIDEO_PICTURE_QUEUE_SIZE 4
 #define SUBPICTURE_QUEUE_SIZE 4
@@ -270,15 +265,9 @@ static void packet_queue_destroy(PacketQueue *q);
 static void packet_queue_abort(PacketQueue *q);
 static void packet_queue_start(PacketQueue *q);
 static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block);
-static inline void fill_rectangle(SDL_Surface *screen,
-                                  int x, int y, int w, int h, int color);
-static void blend_subrect(AVPicture *dst, const AVSubtitleRect *rect, int imgw, int imgh);
-static void free_subpicture(SubPicture *sp);
-static void calculate_display_rect(SDL_Rect *rect, int scr_xleft, int scr_ytop, int scr_width, int scr_height, VideoPicture *vp);
-static void video_image_display(VideoState *is);
 
-static inline int compute_mod(int a, int b);
-static void video_audio_display(VideoState *s);
+static void free_subpicture(SubPicture *sp);
+
 static void stream_close(VideoState *is);
 static void do_exit(VideoState *is);
 static void sigterm_handler(int sig);
