@@ -230,7 +230,7 @@ typedef enum {
 
 //播放状态
 typedef enum {
-    VideoPlayStatePlaying,
+    VideoPlayStatePlaying = 10000,
     VideoPlayStatePause,
     VideoPlayStateStop
 } VideoPlayState;
@@ -249,7 +249,7 @@ typedef enum {
 
 
 //开始播放
-- (void)startPlay;
+- (void)startPlayWithURLString:(NSString *)playURLString;
 
 - (UIView *) frameView;
 
@@ -322,11 +322,11 @@ static int read_thread(void *arg)
 ;
 static VideoState *stream_open(const char *filename, AVInputFormat *iformat);
 static void stream_cycle_channel(VideoState *is, int codec_type);
-static void toggle_full_screen(VideoState *is);
+//static void toggle_full_screen(VideoState *is);
 static void toggle_pause(VideoState *is);
 static void step_to_next_frame(VideoState *is);
 static void toggle_audio_display(VideoState *is);
-static void event_loop(VideoState *cur_stream);
+//static void event_loop(VideoState *cur_stream);
 static int opt_frame_size(void *optctx, const char *opt, const char *arg);
 static int opt_width(void *optctx, const char *opt, const char *arg);
 static int opt_height(void *optctx, const char *opt, const char *arg);
