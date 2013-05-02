@@ -251,6 +251,8 @@ typedef enum {
 }
 
 
+@property (nonatomic, assign) VideoPlayState videoPlayState;
+
 //开始播放
 - (void)startPlayWithURLString:(NSString *)playURLString;
 
@@ -269,9 +271,6 @@ typedef enum {
 - (void)stopWithError:(VideoPlayErrorType)errotType andError:(NSError *)error;
 
 - (void)seekWithTime:(int)time;
-
-//判断是否是高清
-- (void)checkIsVideoHD;
 
 //控件操作
 - (IBAction)playAction:(id)sender;

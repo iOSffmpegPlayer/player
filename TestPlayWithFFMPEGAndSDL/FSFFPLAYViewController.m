@@ -10,6 +10,7 @@
 
 @implementation FSFFPLAYViewController
 
+@synthesize videoPlayState;
 
 /* options specified by the user */
 static AVInputFormat *file_iformat;
@@ -62,9 +63,9 @@ static KxVideoFrameYUV *kxVideoFrame;
 
 static VideoState *videoState = nil;
 
-#define FF_ALLOC_EVENT   (SDL_USEREVENT)
-#define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
-#define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
+//#define FF_ALLOC_EVENT   (SDL_USEREVENT)
+//#define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
+//#define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
 //static SDL_Surface *screen;
 
@@ -1283,6 +1284,8 @@ static int stream_component_open(VideoState *is, int stream_index)
         case AVMEDIA_TYPE_AUDIO   : is->last_audio_stream    = stream_index; if(audio_codec_name   ) codec= avcodec_find_decoder_by_name(   audio_codec_name); break;
         case AVMEDIA_TYPE_SUBTITLE: is->last_subtitle_stream = stream_index; if(subtitle_codec_name) codec= avcodec_find_decoder_by_name(subtitle_codec_name); break;
         case AVMEDIA_TYPE_VIDEO   : is->last_video_stream    = stream_index; if(video_codec_name   ) codec= avcodec_find_decoder_by_name(   video_codec_name); break;
+            default:
+            break;
     }
     if (!codec)
         return -1;
@@ -1716,11 +1719,11 @@ fail:
     }
     
     if (ret != 0) {
-        SDL_Event event;
-        
-        event.type = FF_QUIT_EVENT;
-        event.user.data1 = is;
-        SDL_PushEvent(&event);
+//        SDL_Event event;
+//        
+//        event.type = FF_QUIT_EVENT;
+//        event.user.data1 = is;
+//        SDL_PushEvent(&event);
     }
     SDL_DestroyMutex(wait_mutex);
     return 0;
@@ -1889,8 +1892,24 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     videoState = VideoPlayStateStop;
 }
 
-- (void)viewDidAppear:(BOOL)animated {
+- (void)viewWillAppear:(BOOL)animated {
+    
+}
 
+- (void)viewDidAppear:(BOOL)animated {
+    if (videoPlayState == VideoPlayStateStop) {
+        [self playAction:nil];
+    }
+    
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    if (videoPlayState == VideoPlayStatePlaying || videoPlayState == VideoPlayStatePause) {
+        [self stop];
+    }
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
     
 }
 
@@ -1906,6 +1925,19 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     // Return YES for supported orientations
 	return YES;
 }
+
+#pragma mark -
+#pragma mark set get methods
+- (void)setVideoPlayState:(VideoPlayState)theVideoPlayState {
+    videoPlayState = theVideoPlayState;
+    
+    [UIApplication sharedApplication].idleTimerDisabled = (videoPlayState == VideoPlayStatePlaying);
+    
+}
+
+#pragma mark -
+#pragma mark custom methods
+
 
 //播放指定地址的视频
 - (void)startPlayWithURLString:(NSString *)playURLString {
@@ -1981,7 +2013,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     }
     
     videoState = is;
-    videoPlayState = VideoPlayStatePlaying;
+    self.videoPlayState = VideoPlayStatePlaying;
     
 }
 
@@ -2014,7 +2046,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 - (void)pause {
 
     if (videoPlayState == VideoPlayStatePlaying || videoPlayState == VideoPlayStatePause) {
-        videoPlayState = (videoPlayState == VideoPlayStatePlaying) ? VideoPlayStatePause : VideoPlayStatePlaying;
+        self.videoPlayState = (videoPlayState == VideoPlayStatePlaying) ? VideoPlayStatePause : VideoPlayStatePlaying;
         
         toggle_pause(videoState);
     }
@@ -2024,7 +2056,9 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 - (void)stop {
     
     if (videoPlayState == VideoPlayStatePlaying || videoPlayState == VideoPlayStatePause) {
-        videoPlayState = VideoPlayStateStop;
+        self.videoPlayState = VideoPlayStateStop;
+        
+        isFrameOk = NO;
         
         do_exit(videoState);
     }
