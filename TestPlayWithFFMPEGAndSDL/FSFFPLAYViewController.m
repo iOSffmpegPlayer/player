@@ -1979,13 +1979,13 @@ static int lockmgr(void **mtx, enum AVLockOp op)
         video_disable = 0;
     }
     flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER;
-    if (audio_disable)
-        flags &= ~SDL_INIT_AUDIO;
-    if (display_disable)
-        SDL_putenv(dummy_videodriver); /* For the event queue, we always need a video driver. */
-#if !defined(__MINGW32__) && !defined(__APPLE__)
-    flags |= SDL_INIT_EVENTTHREAD; /* Not supported on Windows or Mac OS X */
-#endif
+//    if (audio_disable)
+//        flags &= ~SDL_INIT_AUDIO;
+//    if (display_disable)
+//        SDL_putenv(dummy_videodriver); /* For the event queue, we always need a video driver. */
+//#if !defined(__MINGW32__) && !defined(__APPLE__)
+//    flags |= SDL_INIT_EVENTTHREAD; /* Not supported on Windows or Mac OS X */
+//#endif
     
     if (SDL_Init (flags)) {
 //        fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
@@ -2022,7 +2022,10 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     
     if (isFrameOk) {
 
-        [_glView render:kxVideoFrame];
+        if (kxVideoFrame.chromaB && kxVideoFrame.chromaR && kxVideoFrame.luma) {
+            [_glView render:kxVideoFrame];
+
+        }
         
         isFrameOk = NO;
     
