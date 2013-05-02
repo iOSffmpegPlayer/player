@@ -304,12 +304,14 @@ static int refresh_thread(void *opaque)
 {
     VideoState *is= opaque;
     while (!is->abort_request) {
-        SDL_Event event;
-        event.type = FF_REFRESH_EVENT;
-        event.user.data1 = opaque;
+//        SDL_Event event;
+//        event.type = FF_REFRESH_EVENT;
+//        event.user.data1 = opaque;
         if (!is->refresh && (!is->paused || is->force_refresh)) {
             is->refresh = 1;
-            SDL_PushEvent(&event);
+//            SDL_PushEvent(&event);
+            video_refresh(opaque);
+            is->refresh = 0;
         }
         //FIXME ideally we should wait the correct time but SDLs event passing is so slow it would be silly
         av_usleep(is->audio_st && is->show_mode != SHOW_MODE_VIDEO ? rdftspeed*1000 : 5000);
@@ -716,9 +718,11 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
         
         /* the allocation must be done in the main thread to avoid
          locking problems. */
-        event.type = FF_ALLOC_EVENT;
-        event.user.data1 = is;
-        SDL_PushEvent(&event);
+//        event.type = FF_ALLOC_EVENT;
+//        event.user.data1 = is;
+//        SDL_PushEvent(&event);
+        alloc_picture(is);
+
         
         /* wait until the picture is allocated */
         SDL_LockMutex(is->pictq_mutex);
@@ -1840,7 +1844,7 @@ static void step_to_next_frame(VideoState *is)
 
 /* handle an event sent by the GUI */
 
-static bool eventStop = TRUE;
+//static bool eventStop = TRUE;
 static void event_loop(VideoState *cur_stream)
 {
 
@@ -1852,9 +1856,9 @@ static void event_loop(VideoState *cur_stream)
         double x;
         SDL_WaitEvent(&event);
         
-        if (eventStop) {
-            break;
-        }
+//        if (eventStop) {
+//            break;
+//        }
         
         switch (event.type) {
             case SDL_KEYDOWN:
@@ -2151,8 +2155,9 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     
     videoState = is;
     videoPlayState = VideoPlayStatePlaying;
-    eventStop = FALSE;
-    event_loop(is);
+//    eventStop = FALSE;
+//    event_loop(is);
+    
 }
 - (void)showVideoThread {
     
@@ -2189,7 +2194,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     
     videoPlayState = VideoPlayStateStop;
     
-    eventStop = TRUE;
+//    eventStop = TRUE;
 
     do_exit(videoState);
     
