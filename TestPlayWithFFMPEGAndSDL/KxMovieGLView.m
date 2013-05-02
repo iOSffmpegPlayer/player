@@ -477,6 +477,8 @@ enum {
 	}
     
 	_context = nil;
+    
+    [super dealloc];
 }
 
 - (void)layoutSubviews
@@ -565,10 +567,10 @@ exit:
 - (void)updateVertices
 {
     const BOOL fit      = (self.contentMode == UIViewContentModeScaleAspectFit);
-//    const float width   = _decoder.frameWidth;
-//    const float height  = _decoder.frameHeight;
-    const float width   = 100;
-    const float height  = 100;
+    const float width   = _decoder.frameWidth;
+    const float height  = _decoder.frameHeight;
+//    const float width   = _backingWidth;
+//    const float height  = _backingHeight;
     const float dH      = (float)_backingHeight / height;
     const float dW      = (float)_backingWidth	  / width;
     const float dd      = fit ? MIN(dH, dW) : MAX(dH, dW);
@@ -586,7 +588,8 @@ exit:
 }
 
 - (void)render: (KxVideoFrame *) frame
-{        
+{
+    [self updateVertices];
     static const GLfloat texCoords[] = {
         0.0f, 1.0f,
         1.0f, 1.0f,

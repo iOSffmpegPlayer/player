@@ -15,8 +15,8 @@
 static AVInputFormat *file_iformat;
 static const char *input_filename;
 
-static int screen_width  = 0;
-static int screen_height = 0;
+//static int screen_width  = 0;
+//static int screen_height = 0;
 static int audio_disable;
 static int video_disable;
 static int wanted_stream[AVMEDIA_TYPE_NB] = {
@@ -41,8 +41,8 @@ static enum AVDiscard skip_loop_filter = AVDISCARD_DEFAULT;
 static int error_concealment = 3;
 static int decoder_reorder_pts = -1;
 static int autoexit;
-static int exit_on_keydown;
-static int exit_on_mousedown;
+//static int exit_on_keydown;
+//static int exit_on_mousedown;
 static int loop = 1;
 static int framedrop = -1;
 static int infinite_buffer = 0;
@@ -589,7 +589,7 @@ static void video_refresh(void *opaque)
             /* display picture */
 
             if (!display_disable)
-                [fsFFPLAYViewController showVideoThread];
+                [fsFFPLAYViewController showVideo];
             
             pictq_next_picture(is);
         }
@@ -1464,7 +1464,7 @@ static int read_thread(void *arg)
     ic = avformat_alloc_context();
     ic->interrupt_callback.callback = decode_interrupt_cb;
     ic->interrupt_callback.opaque = is;
-    ic->max_analyze_duration = 1000000;//修改延迟问题
+    ic->max_analyze_duration = 500000;//修改延迟问题
         
     err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);
     if (err < 0) {
@@ -1806,19 +1806,6 @@ the_end:
         is->que_attachments_req = 1;
 }
 
-
-//static void toggle_full_screen(VideoState *is)
-//{
-//#if defined(__APPLE__) && SDL_VERSION_ATLEAST(1, 2, 14)
-//    /* OS X needs to reallocate the SDL overlays */
-//    int i;
-//    for (i = 0; i < VIDEO_PICTURE_QUEUE_SIZE; i++)
-//        is->pictq[i].reallocate = 1;
-//#endif
-////    is_full_screen = !is_full_screen;
-////    video_open(is, 1);
-//}
-
 static void toggle_pause(VideoState *is)
 {
     stream_toggle_pause(is);
@@ -1832,177 +1819,6 @@ static void step_to_next_frame(VideoState *is)
         stream_toggle_pause(is);
     is->step = 1;
 }
-
-//static void toggle_audio_display(VideoState *is)
-//{
-//    int bgcolor = SDL_MapRGB(screen->format, 0x00, 0x00, 0x00);
-//    is->show_mode = (is->show_mode + 1) % SHOW_MODE_NB;
-//    fill_rectangle(screen,
-//                   is->xleft, is->ytop, is->width, is->height,
-//                   bgcolor);
-//    SDL_UpdateRect(screen, is->xleft, is->ytop, is->width, is->height);
-//}
-
-/* handle an event sent by the GUI */
-
-//static bool eventStop = TRUE;
-//static void event_loop(VideoState *cur_stream)
-//{
-//
-//    SDL_Event event;
-//    double incr, pos, frac;
-//    
-//    for (;;) {
-//        
-//        double x;
-//        SDL_WaitEvent(&event);
-//        
-////        if (eventStop) {
-////            break;
-////        }
-//        
-//        switch (event.type) {
-//            case SDL_KEYDOWN:
-//                if (exit_on_keydown) {
-//                    do_exit(cur_stream);
-//                    break;
-//                }
-//                switch (event.key.keysym.sym) {
-//                    case SDLK_ESCAPE:
-//                    case SDLK_q:
-//                        do_exit(cur_stream);
-//                        break;
-//                    case SDLK_f:
-//                        toggle_full_screen(cur_stream);
-//                        cur_stream->force_refresh = 1;
-//                        break;
-//                    case SDLK_p:
-//                    case SDLK_SPACE:
-//                        toggle_pause(cur_stream);
-//                        break;
-//                    case SDLK_s: // S: Step to next frame
-//                        step_to_next_frame(cur_stream);
-//                        break;
-//                    case SDLK_a:
-//                        stream_cycle_channel(cur_stream, AVMEDIA_TYPE_AUDIO);
-//                        break;
-//                    case SDLK_v:
-//                        stream_cycle_channel(cur_stream, AVMEDIA_TYPE_VIDEO);
-//                        break;
-//                    case SDLK_t:
-//                        stream_cycle_channel(cur_stream, AVMEDIA_TYPE_SUBTITLE);
-//                        break;
-////                    case SDLK_w:
-////                        toggle_audio_display(cur_stream);
-////                        cur_stream->force_refresh = 1;
-////                        break;
-//                    case SDLK_PAGEUP:
-//                        incr = 600.0;
-//                        goto do_seek;
-//                    case SDLK_PAGEDOWN:
-//                        incr = -600.0;
-//                        goto do_seek;
-//                    case SDLK_LEFT:
-//                        incr = -10.0;
-//                        goto do_seek;
-//                    case SDLK_RIGHT:
-//                        incr = 10.0;
-//                        goto do_seek;
-//                    case SDLK_UP:
-//                        incr = 60.0;
-//                        goto do_seek;
-//                    case SDLK_DOWN:
-//                        incr = -60.0;
-//                    do_seek:
-//                        if (seek_by_bytes) {
-//                            if (cur_stream->video_stream >= 0 && cur_stream->video_current_pos >= 0) {
-//                                pos = cur_stream->video_current_pos;
-//                            } else if (cur_stream->audio_stream >= 0 && cur_stream->audio_pkt.pos >= 0) {
-//                                pos = cur_stream->audio_pkt.pos;
-//                            } else
-//                                pos = avio_tell(cur_stream->ic->pb);
-//                            if (cur_stream->ic->bit_rate)
-//                                incr *= cur_stream->ic->bit_rate / 8.0;
-//                            else
-//                                incr *= 180000.0;
-//                            pos += incr;
-//                            stream_seek(cur_stream, pos, incr, 1);
-//                        } else {
-//                            pos = get_master_clock(cur_stream);
-//                            pos += incr;
-//                            stream_seek(cur_stream, (int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE), 0);
-//                        }
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                break;
-//            case SDL_VIDEOEXPOSE:
-//                cur_stream->force_refresh = 1;
-//                break;
-//            case SDL_MOUSEBUTTONDOWN:
-//                if (exit_on_mousedown) {
-//                    do_exit(cur_stream);
-//                    break;
-//                }
-//            case SDL_MOUSEMOTION:
-//                if (event.type == SDL_MOUSEBUTTONDOWN) {
-//                    x = event.button.x;
-//                } else {
-//                    if (event.motion.state != SDL_PRESSED)
-//                        break;
-//                    x = event.motion.x;
-//                }
-//                if (seek_by_bytes || cur_stream->ic->duration <= 0) {
-//                    uint64_t size =  avio_size(cur_stream->ic->pb);
-//                    stream_seek(cur_stream, size*x/cur_stream->width, 0, 1);
-//                } else {
-//                    int64_t ts;
-//                    int ns, hh, mm, ss;
-//                    int tns, thh, tmm, tss;
-//                    tns  = cur_stream->ic->duration / 1000000LL;
-//                    thh  = tns / 3600;
-//                    tmm  = (tns % 3600) / 60;
-//                    tss  = (tns % 60);
-//                    frac = x / cur_stream->width;
-//                    ns   = frac * tns;
-//                    hh   = ns / 3600;
-//                    mm   = (ns % 3600) / 60;
-//                    ss   = (ns % 60);
-//                    fprintf(stderr, "Seek to %2.0f%% (%2d:%02d:%02d) of total duration (%2d:%02d:%02d)       \n", frac*100,
-//                            hh, mm, ss, thh, tmm, tss);
-//                    ts = frac * cur_stream->ic->duration;
-//                    if (cur_stream->ic->start_time != AV_NOPTS_VALUE)
-//                        ts += cur_stream->ic->start_time;
-//                    stream_seek(cur_stream, ts, 0, 0);
-//                }
-//                break;
-//            case SDL_VIDEORESIZE:
-//                NSLog(@"也执行这里了么？%s  %d", __FUNCTION__, __LINE__);
-////                screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
-////                                          SDL_HWSURFACE|SDL_RESIZABLE|SDL_ASYNCBLIT|SDL_HWACCEL);
-////                screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
-////                                          SDL_FULLSCREEN);
-//                screen_width  = cur_stream->width  = event.resize.w;
-//                screen_height = cur_stream->height = event.resize.h;
-//                cur_stream->force_refresh = 1;
-//                break;
-//            case SDL_QUIT:
-//            case FF_QUIT_EVENT:
-//                do_exit(cur_stream);
-//                break;
-//            case FF_ALLOC_EVENT:
-//                alloc_picture(event.user.data1);
-//                break;
-//            case FF_REFRESH_EVENT:
-//                video_refresh(event.user.data1);
-//                cur_stream->refresh = 0;
-//                break;
-//            default:
-//                break;
-//        }
-//    }
-//}
 
 static int lockmgr(void **mtx, enum AVLockOp op)
 {
@@ -2062,8 +1878,8 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    //[self startPlay];
 
+    
 }
 
 - (void)viewDidUnload
@@ -2079,6 +1895,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 	return YES;
 }
 
+//播放指定地址的视频
 - (void)startPlayWithURLString:(NSString *)playURLString {
     
     if (videoPlayState == VideoPlayStatePlaying || videoPlayState == VideoPlayStatePause) {
@@ -2125,6 +1942,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 #if !defined(__MINGW32__) && !defined(__APPLE__)
     flags |= SDL_INIT_EVENTTHREAD; /* Not supported on Windows or Mac OS X */
 #endif
+    
     if (SDL_Init (flags)) {
 //        fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
 //        fprintf(stderr, "(Did you set the DISPLAY variable?)\n");
@@ -2133,10 +1951,6 @@ static int lockmgr(void **mtx, enum AVLockOp op)
         [fsFFPLAYViewController stopWithError:VideoPlayErrorTypeSDLError andError:nil];
 
     }
-    
-//    SDL_EventState(SDL_ACTIVEEVENT, SDL_IGNORE);
-//    SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
-//    SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
     
     if (av_lockmgr_register(lockmgr)) {
         fprintf(stderr, "Could not initialize lock manager!\n");
@@ -2158,7 +1972,9 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     videoPlayState = VideoPlayStatePlaying;
     
 }
-- (void)showVideoThread {
+
+//显示视频
+- (void)showVideo {
     
     if (isFrameOk) {
 
@@ -2169,10 +1985,12 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     }
 
 }
+
+//获取绘画界面
 - (UIView *) frameView
 {
     if (!_glView) {
-        _glView = [[KxMovieGLView alloc] initWithFrame:self.view.bounds decoder:nil];
+        _glView = [[KxMovieGLView alloc] initWithFrame:self.view.bounds decoder:kxMoviedecoder];
     }
     return _glView;
 }
@@ -2240,6 +2058,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 #pragma mark ibaction methods
 - (IBAction)playAction:(id)sender {
     [self startPlayWithURLString:[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"]];
+//    [self startPlayWithURLString:@"udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400"];
 }
 
 - (IBAction)pausePlayAction:(id)sender {

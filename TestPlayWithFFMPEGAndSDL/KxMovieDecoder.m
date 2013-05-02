@@ -1206,12 +1206,6 @@ static int interrupt_callback(void *ctx);
     if (!avframe->data[0] || !avframe->data[1] || !avframe->data[2])
         return nil;
     
-//    KxVideoFrame *frame = nil;
-    
-//    if (_videoFrameFormat == KxVideoFrameFormatYUV) {
-    
-//        KxVideoFrameYUV * yuvFrame = [[KxVideoFrameYUV alloc] init];
-    
     [vFrameYUV.luma release];
     vFrameYUV.luma = nil;
     [vFrameYUV.chromaB release];
@@ -1219,56 +1213,27 @@ static int interrupt_callback(void *ctx);
     [vFrameYUV.chromaR release];
     vFrameYUV.chromaR = nil;
     
-        vFrameYUV.luma = copyFrameData(avframe->data[0],
-                                      avframe->linesize[0],
-                                      videoCodecCtx->width,
-                                      videoCodecCtx->height);
-        
-        vFrameYUV.chromaB = copyFrameData(avframe->data[1],
-                                         avframe->linesize[1],
-                                         videoCodecCtx->width / 2,
-                                         videoCodecCtx->height / 2);
-        
-        vFrameYUV.chromaR = copyFrameData(avframe->data[2],
-                                         avframe->linesize[2],
-                                         videoCodecCtx->width / 2,
-                                         videoCodecCtx->height / 2);
-        
-//        frame = yuvFrame;
+    vFrameYUV.luma = copyFrameData(avframe->data[0],
+                                  avframe->linesize[0],
+                                  videoCodecCtx->width,
+                                  videoCodecCtx->height);
     
-//    }
+    vFrameYUV.chromaB = copyFrameData(avframe->data[1],
+                                     avframe->linesize[1],
+                                     videoCodecCtx->width / 2,
+                                     videoCodecCtx->height / 2);
+    
+    vFrameYUV.chromaR = copyFrameData(avframe->data[2],
+                                     avframe->linesize[2],
+                                     videoCodecCtx->width / 2,
+                                     videoCodecCtx->height / 2);
+
     
     vFrameYUV.width = videoCodecCtx->width;
     vFrameYUV.height = videoCodecCtx->height;
-//    frame.width = 1280;
-//    frame.height = 544;
-//    frame.position = av_frame_get_best_effort_timestamp(avframe) * _videoTimeBase;
-//
-//    const int64_t frameDuration = av_frame_get_pkt_duration(avframe);
-//    if (frameDuration) {
-//        
-//        frame.duration = frameDuration * _videoTimeBase;
-//        frame.duration += _videoFrame->repeat_pict * _videoTimeBase * 0.5;
-//        
-//        //if (_videoFrame->repeat_pict > 0) {
-//        //    NSLog(@"_videoFrame.repeat_pict %d", _videoFrame->repeat_pict);
-//        //}
-//        
-//    } else {
-//        
-//        // sometimes, ffmpeg unable to determine a frame duration
-//        // as example yuvj420p stream from web camera
-//        frame.duration = 1.0 / _fps;
-//    }
-//    
-//#if 0
-//    NSLog(@"VFD: %.4f %.4f | %lld ",
-//          frame.position,
-//          frame.duration,
-//          av_frame_get_pkt_pos(_videoFrame));
-//#endif
     
-//    return yuvFrame;
+    _videoCodecCtx = videoCodecCtx;
+
 }
 //- (KxAudioFrame *) handleAudioFrame
 //{

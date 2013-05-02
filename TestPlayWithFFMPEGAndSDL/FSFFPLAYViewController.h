@@ -253,7 +253,7 @@ typedef enum {
 
 - (UIView *) frameView;
 
-- (void)showVideoThread;
+- (void)showVideo;
 
 //播放控制
 - (void)start;
