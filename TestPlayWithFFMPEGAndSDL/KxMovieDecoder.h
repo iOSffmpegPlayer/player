@@ -87,53 +87,12 @@ typedef enum {
 @property (readonly, nonatomic, strong) NSString *text;
 @end
 
-typedef BOOL(^KxMovieDecoderInterruptCallback)();
-
 @interface KxMovieDecoder : NSObject
 
-@property (readonly, nonatomic, strong) NSString *path;
-@property (readonly, nonatomic) BOOL isEOF;
-@property (readwrite,nonatomic) CGFloat position;
-@property (readonly, nonatomic) CGFloat duration;
-@property (readonly, nonatomic) CGFloat fps;
-@property (readonly, nonatomic) CGFloat sampleRate;
 @property (readonly, nonatomic) NSUInteger frameWidth;
 @property (readonly, nonatomic) NSUInteger frameHeight;
-@property (readonly, nonatomic) NSUInteger audioStreamsCount;
-@property (readwrite,nonatomic) NSInteger selectedAudioStream;
-@property (readonly, nonatomic) NSUInteger subtitleStreamsCount;
-@property (readwrite,nonatomic) NSInteger selectedSubtitleStream;
-@property (readonly, nonatomic) BOOL validVideo;
-@property (readonly, nonatomic) BOOL validAudio;
-@property (readonly, nonatomic) BOOL validSubtitles;
-@property (readonly, nonatomic, strong) NSDictionary *info;
-@property (readonly, nonatomic, strong) NSString *videoStreamFormatName;
-@property (readonly, nonatomic) BOOL isNetwork;
-@property (readonly, nonatomic) CGFloat startTime;
-@property (readwrite, nonatomic) BOOL disableDeinterlacing;
-@property (readwrite, nonatomic, strong) KxMovieDecoderInterruptCallback interruptCallback;
 
-+ (id) movieDecoderWithContentPath: (NSString *) path
-                             error: (NSError **) perror;
-
-- (BOOL) openFile: (NSString *) path
-            error: (NSError **) perror;
-
--(void) closeFile;
-
-- (BOOL) setupVideoFrameFormat: (KxVideoFrameFormat) format;
-
-- (NSArray *) decodeFrames: (CGFloat) minDuration;
-
-- (void *)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx andKxVideoFrameYUV:(KxVideoFrameYUV *)vFrameYUV;
+- (void)handleVieoFrameWithFrame:(AVFrame *)avframe andvideoCodecCtx:(AVCodecContext *)videoCodecCtx andKxVideoFrameYUV:(KxVideoFrameYUV *)vFrameYUV;
 
 @end
 
-@interface KxMovieSubtitleASSParser : NSObject
-
-+ (NSArray *) parseEvents: (NSString *) events;
-+ (NSArray *) parseDialogue: (NSString *) dialogue
-                  numFields: (NSUInteger) numFields;
-+ (NSString *) removeCommandsFromEventText: (NSString *) text;
-
-@end

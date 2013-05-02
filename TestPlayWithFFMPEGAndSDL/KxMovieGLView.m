@@ -337,6 +337,8 @@ static void mat4f_LoadOrtho(float left, float right, float bottom, float top, fl
 {
     if (_textures[0])
         glDeleteTextures(3, _textures);
+    
+    [super dealloc];
 }
 
 @end
@@ -377,17 +379,7 @@ enum {
     if (self) {
         
         _decoder = decoder;
-        
-//        if ([decoder setupVideoFrameFormat:KxVideoFrameFormatYUV]) {
-//            
-//            _renderer = [[KxMovieGLRenderer_YUV alloc] init];
-//            NSLog(@"OK use YUV GL renderer");
-//            
-//        } else {
-//            
-//            _renderer = [[KxMovieGLRenderer_RGB alloc] init];
-//            NSLog(@"OK use RGB GL renderer");
-//        }
+
         _renderer = [[KxMovieGLRenderer_YUV alloc] init];
         
         CAEAGLLayer *eaglLayer = (CAEAGLLayer*) self.layer;
@@ -569,8 +561,6 @@ exit:
     const BOOL fit      = (self.contentMode == UIViewContentModeScaleAspectFit);
     const float width   = _decoder.frameWidth;
     const float height  = _decoder.frameHeight;
-//    const float width   = _backingWidth;
-//    const float height  = _backingHeight;
     const float dH      = (float)_backingHeight / height;
     const float dW      = (float)_backingWidth	  / width;
     const float dd      = fit ? MIN(dH, dW) : MAX(dH, dW);
