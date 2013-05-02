@@ -53,7 +53,7 @@
 /* no AV sync correction is done if below the AV sync threshold */
 #define AV_SYNC_THRESHOLD 0.01
 /* no AV correction is done if too big error */
-#define AV_NOSYNC_THRESHOLD 10.0
+#define AV_NOSYNC_THRESHOLD 1.0
 
 /* maximum audio speed change to get correct sync */
 #define SAMPLE_CORRECTION_PERCENT_MAX 10
@@ -225,7 +225,8 @@ typedef struct VideoState {
 typedef enum {
     VideoPlayErrorTypeInput,
     VideoPlayErrorTypeSDLError,
-    VideoPlayErrorTypeInitError
+    VideoPlayErrorTypeInitError,
+    VideoPlayErrorTypeHDError
 } VideoPlayErrorType;
 
 //播放状态
@@ -235,6 +236,8 @@ typedef enum {
     VideoPlayStateStop
 } VideoPlayState;
 
+//高清指标
+#define HDWIDTHHEIGHTTOTAL 600000 // This is roughly between 480p and 720p
 
 //播放器
 @interface FSFFPLAYViewController : UIViewController {
@@ -266,6 +269,9 @@ typedef enum {
 - (void)stopWithError:(VideoPlayErrorType)errotType andError:(NSError *)error;
 
 - (void)seekWithTime:(int)time;
+
+//判断是否是高清
+- (void)checkIsVideoHD;
 
 //控件操作
 - (IBAction)playAction:(id)sender;

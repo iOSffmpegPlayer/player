@@ -762,7 +762,6 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
 //获取视频帧
 static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacket *pkt)
 {
-    SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
 
     int got_picture, i;
     
@@ -789,11 +788,17 @@ static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacke
         
         return 0;
     }
+    SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
+
     if(avcodec_decode_video2(is->video_st->codec, frame, &got_picture, pkt) < 0) {
+        SDL_SetThreadPriority(SDL_THREAD_PRIORITY_NORMAL);
+
         return 0;
     } else {
+        SDL_SetThreadPriority(SDL_THREAD_PRIORITY_NORMAL);
+
     }
-    
+
     if (got_picture) {
         int ret = 1;
         
@@ -851,6 +856,12 @@ static int video_thread(void *arg)
         av_free_packet(&pkt);
         
         ret = get_video_frame(is, frame, &pts_int, &pkt);
+        
+        if (is->video_st->codec->width * is->video_st->codec->height >= HDWIDTHHEIGHTTOTAL) {
+            [fsFFPLAYViewController stopWithError:VideoPlayErrorTypeHDError andError:nil];
+            return 0;
+        }
+        
         if (ret < 0)
             goto the_end;
         
@@ -1336,7 +1347,8 @@ static int stream_component_open(VideoState *is, int stream_index)
         case AVMEDIA_TYPE_VIDEO:
             is->video_stream = stream_index;
             is->video_st = ic->streams[stream_index];
-            
+            NSLog(@"line:%d width:%d  height:%d", __LINE__, is->video_st->codec->width, is->video_st->codec->height);
+
             packet_queue_start(&is->videoq);
             is->video_tid = SDL_CreateThread(video_thread,"video_tid",  is);
             break;
@@ -1542,12 +1554,12 @@ static int read_thread(void *arg)
     }
     
     is->show_mode = show_mode;
-    
+
     /* open the streams */
     if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
         stream_component_open(is, st_index[AVMEDIA_TYPE_AUDIO]);
     }
-    
+
     ret = -1;
     if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
         ret = stream_component_open(is, st_index[AVMEDIA_TYPE_VIDEO]);
@@ -2028,17 +2040,22 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     
     switch (errotType) {
         case VideoPlayErrorTypeInput:
-        {
+        {//输入错误
             
         }
             break;
         case VideoPlayErrorTypeSDLError:
-        {
+        {//
             
         }
             break;
         case VideoPlayErrorTypeInitError:
-        {
+        {//初始化错误
+            
+        }
+            break;
+        case VideoPlayErrorTypeHDError:
+        {//高清视频错误
             
         }
             break;
@@ -2057,8 +2074,8 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 #pragma mark -
 #pragma mark ibaction methods
 - (IBAction)playAction:(id)sender {
-    [self startPlayWithURLString:[[NSBundle mainBundle] pathForResource:@"2" ofType:@"mp4"]];
-//    [self startPlayWithURLString:@"udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400"];
+//    [self startPlayWithURLString:[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"]];
+    [self startPlayWithURLString:@"udp://@192.168.1.101:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400"];
 }
 
 - (IBAction)pausePlayAction:(id)sender {
