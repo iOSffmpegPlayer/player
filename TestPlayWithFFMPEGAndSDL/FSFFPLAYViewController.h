@@ -53,7 +53,7 @@
 /* no AV sync correction is done if below the AV sync threshold */
 #define AV_SYNC_THRESHOLD 0.01
 /* no AV correction is done if too big error */
-#define AV_NOSYNC_THRESHOLD 1.0
+#define AV_NOSYNC_THRESHOLD 10.0
 
 /* maximum audio speed change to get correct sync */
 #define SAMPLE_CORRECTION_PERCENT_MAX 10

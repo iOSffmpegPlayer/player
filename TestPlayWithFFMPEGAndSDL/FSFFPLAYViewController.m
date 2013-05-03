@@ -1950,7 +1950,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
     
     int flags;
     VideoState *is;
-//    char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
+    char dummy_videodriver[] = "SDL_VIDEODRIVER=dummy";
     
     input_filename = [playURLString UTF8String];
 
@@ -1979,13 +1979,13 @@ static int lockmgr(void **mtx, enum AVLockOp op)
         video_disable = 0;
     }
     flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER;
-//    if (audio_disable)
-//        flags &= ~SDL_INIT_AUDIO;
-//    if (display_disable)
-//        SDL_putenv(dummy_videodriver); /* For the event queue, we always need a video driver. */
-//#if !defined(__MINGW32__) && !defined(__APPLE__)
-//    flags |= SDL_INIT_EVENTTHREAD; /* Not supported on Windows or Mac OS X */
-//#endif
+    if (audio_disable)
+        flags &= ~SDL_INIT_AUDIO;
+    if (display_disable)
+        SDL_putenv(dummy_videodriver); /* For the event queue, we always need a video driver. */
+#if !defined(__MINGW32__) && !defined(__APPLE__)
+    flags |= SDL_INIT_EVENTTHREAD; /* Not supported on Windows or Mac OS X */
+#endif
     
     if (SDL_Init (flags)) {
 //        fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
@@ -2112,7 +2112,7 @@ static int lockmgr(void **mtx, enum AVLockOp op)
 #pragma mark ibaction methods
 - (IBAction)playAction:(id)sender {
 //    [self startPlayWithURLString:[[NSBundle mainBundle] pathForResource:@"1" ofType:@"mp4"]];
-    [self startPlayWithURLString:@"udp://@192.168.1.100:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=65535&pkt_size=65535&reuse=1"];
+    [self startPlayWithURLString:@"udp://@192.168.1.100:8905?fifo_size=1000000&overrun_nonfatal=1&buffer_size=102400&pkt_size=102400"];
 }
 
 - (IBAction)pausePlayAction:(id)sender {
